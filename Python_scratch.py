@@ -44,18 +44,19 @@ class RandomForestFromScratch():
                     continue
 
                 all_gina_scores = np.zeros((n, self.d))
+                all_gina_score_info = np.zeros((n, self.d), dtype="object")
                 print(f"ewdbwiuebfuwbef n={n} and d ={self.d}")
                 for dim in range(self.d):
                     for row in range(n):
                         print(f"X_train_b={X_train_b} and its shape is {X_train_b.shape} and dim is {dim} and row is {row} and y_train_b {y_train_b}")
                         print(f"row{row} dim{dim}")
-                        all_gina_scores[row, dim] = self._calculate_score(X_train_b, y_train_b, dim, row)
+                        all_gina_scores[row, dim], all_gina_score_info[row, dim] = self._calculate_score(X_train_b, y_train_b, dim, row)
                         print(f"row{row} dim{dim}")
                         print("hello2")
 
 
                 best_dim, best_split_val, best_split_val_index = self._choose_best_score(
-                    all_gina_scores)
+                    all_gina_scores, all_gina_score_info)
 
                 print(f"best_dim {best_dim}, best_split_val {best_split_val}, best_split_val_index {best_split_val_index} ")
 
@@ -94,17 +95,19 @@ class RandomForestFromScratch():
         classes = ['Iris-setosa','Iris-virginica','Iris-versicolor']
         labels =np.zeros(y_train_b.shape)
         labels_pred =np.zeros(y_train_b.shape)
+        max_score = 0
+        max_score_info = {}
         for j in range(len(classes)):
             for i in range(len(y_train)):
                 if (y_train_b[i]== classes[j]):
                     labels[i]=1
                 else:
                     labels[i]=0
-            split_value = X_train_b[dim,row]
+            split_value = X_train_b[row, dim]
 
             #check greater than
             for i in range(len(y_train_b)):
-                if (X_train_b[i,row]>=split_value):
+                if (X_train_b[i, dim]>=split_value):
                     labels_pred[i]=1
                 else:
                     labels_pred[i]=0
@@ -116,8 +119,18 @@ class RandomForestFromScratch():
 
             #checking the condition
             if(count>=(len(y_train_b)-count)):
+                info = {"sign": 1, "num_correct": count, "class": classes[j]}
+                if count > max_score:
+                    max_score = count
+                    max_score_info = info
                 gina_list.append([1,count,classes[j]])
             else:
+                score = (len(y_train_b)-count)
+                info = {"sign": 0, "num_correct": score, "class": classes[j]}
+                if score > max_score:
+                    print(f"flipping and max score is {score}")
+                    max_score = score
+                    max_score_info = info
                 gina_list.append([0,(len(y_train_b)-count),classes[j]])
         print(gina_list); 
         print([gina_list[i][1] for i in range(len(classes))])     
@@ -127,10 +140,14 @@ class RandomForestFromScratch():
         return gina_list[:][max]
 
     def _choose_best_score(self, all_gina_scores):
+        return max_score, max_score_info
+
+    def _choose_best_score(self, all_gina_scores, all_gina_score_info):
         best_split_val_index, best_dim = unravel_index(
             all_gina_scores.argmax(), all_gina_scores.shape)
 
         best_split_val = all_gina_scores[best_split_val_index, best_dim]
+        max_score_info = all_gina_score_info[best_split_val_index, best_dim]
         return (best_dim, best_split_val, best_split_val_index)
         pass
 
