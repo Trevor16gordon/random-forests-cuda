@@ -22,43 +22,52 @@ classes = ['Iris-setosa','Iris-virginica','Iris-versicolor']
 
     
 
-X_n=len(X_train)
+X_n=15
 weights =(1/X_n)*np.ones(X_n)
 
 choices = np.random.choice(range(X_n), p=weights, size=X_n)
 X_train_b = X_train[choices]
 y_train_b = y_train[choices]
-n= 123
-d=3
+n= 1
+d=2
 gina_list=[]
 
-
-
 for j in range(len(classes)):
-    for i in range(len(y_train)):
-        if (y_train[i]== classes[j]):
-            labels[i]=1
-        else:
-            labels[i]=0
+
+    #create the labels
+    labels = y_train_b==classes[j]
+    labels =labels[:,0].astype('uint8')
+    print(np.sum(labels))
+
+    print(f"Labels are {labels}")
+
+    #get the split value
     split_value = X_train_b[n,d]
+    print(f"the split value is {split_value}")
 
     #check greater than
-    for i in range(len(y_train_b)):
-        if (X_train_b[i,d]>=split_value):
-            labels_pred[i]=1
-        else:
-            labels_pred[i]=0
-    count=0
-    for i in range(len(y_train_b)):
-        if(labels[i]==labels_pred[i]):
-            count+=1
+    labels_pred=(X_train_b[:,d]>=split_value)
+    labels_pred=labels_pred.astype('uint8')
+    print(f'the predicted labels are {labels_pred}')
+
+    #get the count
+    count=np.sum(np.array([(labels[i]==labels_pred[i]) & (labels[i]==1) for i in range(len(y_train_b))]).astype('uint8'))
     print(count)
 
-    #checking the condition
-    if(count>=(len(y_train_b)-count)):
+    #check less than
+    labels_pred=(X_train_b[:,d]<split_value)
+    labels_pred=labels_pred.astype('uint8')
+    print(f'the 2nd  predicted labels are {labels_pred}')
+
+    #get the count
+    count1=np.sum(np.array([(labels[i]==labels_pred[i]) & (labels[i]==1) for i in range(len(y_train_b))]).astype('uint8'))
+    print(count1)
+
+    if count>count1:
         gina_list.append([1,count,classes[j]])
     else:
-        gina_list.append([0,(len(y_train_b)-count),classes[j]])
+        gina_list.append([0,count1,classes[j]])
+
 print(gina_list); 
 print([gina_list[i][1] for i in range(len(classes))])     
 max=np.argmax([gina_list[i][1] for i in range(len(classes))])

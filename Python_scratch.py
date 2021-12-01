@@ -2,8 +2,7 @@ import pandas as pd
 import numpy as np
 from numpy import unravel_index
 from sklearn.model_selection import train_test_split
-
-
+from random import randrange
 
 class RandomForestFromScratch():
 
@@ -44,28 +43,25 @@ class RandomForestFromScratch():
                     continue
 
                 all_gina_scores = np.zeros((n, self.d))
+                all_gina_info = np.zeros((n, self.d), dtype="object")
                 print(f"ewdbwiuebfuwbef n={n} and d ={self.d}")
                 for dim in range(self.d):
                     for row in range(n):
-                        print(f"X_train_b={X_train_b} and its shape is {X_train_b.shape} and dim is {dim} and row is {row} and y_train_b {y_train_b}")
-                        print(f"row{row} dim{dim}")
-                        all_gina_scores[row, dim] = self._calculate_score(X_train_b, y_train_b, dim, row)
-                        print(f"row{row} dim{dim}")
-                        print("hello2")
+                        # print(f"X_train_b={X_train_b} and its shape is {X_train_b.shape} and dim is {dim} and row is {row} and y_train_b {y_train_b}")
+                        # print(f"row{row} dim{dim}")
+                        all_gina_scores[row, dim],all_gina_info[row,dim]= self._calculate_score(X_train_b, y_train_b, dim, row)
+                #print(all_gina_scores)
 
 
-                best_dim, best_split_val, best_split_val_index = self._choose_best_score(
-                    all_gina_scores)
+                best_split_val,max_score_info,max_index = self._choose_best_score(all_gina_scores,all_gina_info)
+                print(f"best_split_value {best_split_val}, max_score_info {max_score_info}, max_index {max_index}")
 
-                print(f"best_dim {best_dim}, best_split_val {best_split_val}, best_split_val_index {best_split_val_index} ")
+                print(f"X_train_b.shape {X_train_b.shape}")
+                decision_boundary = X_train_b[max_index[0], max_index[1]]
 
-                print(f"X_train_b.shape {X_train_b.shape} best_split_val_index {best_split_val_index}")
-                decision_boundary = X_train_b[best_split_val_index, best_dim]
+                print(f"node_dir {node_dir} current_depth: {depth}, best_dim {max_index[1]} best_split_val {best_split_val} decision_boundary {decision_boundary}")
 
-                print(f"node_dir {node_dir} current_depth: {depth}, best_dim {best_dim} best_split_val {best_split_val} decision_boundary {decision_boundary}")
-
-                node = TreeNode(
-                    dim=best_dim, val=decision_boundary, depth=depth)
+                node = TreeNode(dim=max_index[1], val=decision_boundary, depth=depth)
 
                 if parent is not None:
                     if node_dir == "left":
@@ -75,16 +71,16 @@ class RandomForestFromScratch():
                 else:
                     root = node
 
-                X_train_left_b = X_train_b[X_train_b[:,best_dim] <= decision_boundary, :]
-                X_train_right_b = X_train_b[X_train_b[:,best_dim] > decision_boundary, :]
-                y_train_left_b = y_train_b[X_train_b[:,best_dim] <= decision_boundary, :]
-                y_train_right_b = y_train_b[X_train_b[:,best_dim] > decision_boundary, :]
+                X_train_left_b = X_train_b[X_train_b[:,max_index[1]] <= decision_boundary, :]
+                X_train_right_b = X_train_b[X_train_b[:,max_index[1]] > decision_boundary, :]
+                y_train_left_b = y_train_b[X_train_b[:,max_index[1]] <= decision_boundary, :]
+                y_train_right_b = y_train_b[X_train_b[:,max_index[1]] > decision_boundary, :]
+
+                # print(f"y_train_left_b{y_train_left_b} and y_train_right_b{y_train_right_b}")
 
                 if (depth + 1) < self.max_depth:
-                    item_stack_fifo.append(
-                        [X_train_left_b, y_train_left_b, depth+1, "left", node])
-                    item_stack_fifo.append(
-                        [X_train_right_b, y_train_right_b, depth+1, "right", node])
+                    item_stack_fifo.append([X_train_left_b, y_train_left_b, depth+1, "left", node])
+                    item_stack_fifo.append([X_train_right_b, y_train_right_b, depth+1, "right", node])
 
             root.depth_first_print()
 
@@ -95,43 +91,62 @@ class RandomForestFromScratch():
         labels =np.zeros(y_train_b.shape)
         labels_pred =np.zeros(y_train_b.shape)
         for j in range(len(classes)):
-            for i in range(len(y_train)):
-                if (y_train_b[i]== classes[j]):
-                    labels[i]=1
-                else:
-                    labels[i]=0
-            split_value = X_train_b[dim,row]
+
+            #create the labels
+            labels = y_train_b==classes[j]
+            labels =labels[:,0].astype('uint8')
+            # print(np.sum(labels))
+
+            #print(f"Labels are {labels}")
+
+            #get the split value
+            split_value = X_train_b[row,dim]
+            #print(f"the split value is {split_value}")
 
             #check greater than
-            for i in range(len(y_train_b)):
-                if (X_train_b[i,row]>=split_value):
-                    labels_pred[i]=1
-                else:
-                    labels_pred[i]=0
-            count=0
-            for i in range(len(y_train_b)):
-                if(labels[i]==labels_pred[i]):
-                    count+=1
-            print(count)
+            labels_pred=(X_train_b[:,dim]>=split_value)
+            labels_pred=labels_pred.astype('uint8')
+            #print(f'the predicted labels are {labels_pred}')
 
-            #checking the condition
-            if(count>=(len(y_train_b)-count)):
-                gina_list.append([1,count,classes[j]])
+            #get the count
+            count=np.sum(np.array([(labels[i]==labels_pred[i]) & (labels[i]==1) for i in range(len(y_train_b))]).astype('uint8'))
+            #print(count)
+
+            #check less than
+            labels_pred=(X_train_b[:,dim]<split_value)
+            labels_pred=labels_pred.astype('uint8')
+            #print(f'the 2nd  predicted labels are {labels_pred}')
+
+            #get the count
+            count1=np.sum(np.array([(labels[i]==labels_pred[i]) & (labels[i]==1) for i in range(len(y_train_b))]).astype('uint8'))
+            #print(count1)
+
+            if count>count1:
+                gina_list.append( {"sign": 1, "num_correct": count, "class": classes[j]})
             else:
-                gina_list.append([0,(len(y_train_b)-count),classes[j]])
-        print(gina_list); 
-        print([gina_list[i][1] for i in range(len(classes))])     
-        max=np.argmax([gina_list[i][1] for i in range(len(classes))])
-        print(max)
-        print(gina_list[:][max]) 
-        return gina_list[:][max]
+                gina_list.append( {"sign": 0, "num_correct": count1, "class": classes[j]})
 
-    def _choose_best_score(self, all_gina_scores):
-        best_split_val_index, best_dim = unravel_index(
-            all_gina_scores.argmax(), all_gina_scores.shape)
+        # print(gina_list); 
+        # print([gina_list[i]["num_correct"] for i in range(len(gina_list))])     
+        max=np.argmax([gina_list[i]["num_correct"] for i in range(len(gina_list))])
+        # print(max)
+        # print(gina_list[:][max]) 
+        return gina_list[:][max]["num_correct"],gina_list[:][max]
 
-        best_split_val = all_gina_scores[best_split_val_index, best_dim]
-        return (best_dim, best_split_val, best_split_val_index)
+    def _choose_best_score(self, all_gina_scores, all_gina_score_info):
+        print("Checking the best score")
+        max_list=[]
+        max_list=np.flatnonzero(all_gina_scores == np.max(all_gina_scores))
+        max_list=unravel_index(max_list,all_gina_scores.shape)
+        max_index=randrange(len(max_list[0]))
+        max_index=[max_list[0][max_index],max_list[1][max_index]]
+        
+        # print(max_list)
+        # print(max_index)
+        
+        best_split_val = all_gina_scores[max_index[0],max_index[1]]
+        max_score_info = all_gina_score_info[max_index[0],max_index[1]]
+        return (best_split_val,max_score_info,max_index)
         pass
 
 
