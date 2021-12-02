@@ -4,6 +4,9 @@ from numpy import unravel_index
 from sklearn.model_selection import train_test_split
 from random import randrange
 
+def checkTerminalCase(lst):
+    return len(set(lst)) == 1
+
 class RandomForestFromScratch():
 
     def __init__(self, n_estimators=1, max_depth=3):
@@ -76,11 +79,15 @@ class RandomForestFromScratch():
                 y_train_left_b = y_train_b[X_train_b[:,max_index[1]] <= decision_boundary, :]
                 y_train_right_b = y_train_b[X_train_b[:,max_index[1]] > decision_boundary, :]
 
-                # print(f"y_train_left_b{y_train_left_b} and y_train_right_b{y_train_right_b}")
+                print(f"y_train_left_b{y_train_left_b} and y_train_right_b{y_train_right_b}")
 
                 if (depth + 1) < self.max_depth:
-                    item_stack_fifo.append([X_train_left_b, y_train_left_b, depth+1, "left", node])
-                    item_stack_fifo.append([X_train_right_b, y_train_right_b, depth+1, "right", node])
+                    if(checkTerminalCase(y_train_left_b)==False):
+                        item_stack_fifo.append([X_train_left_b, y_train_left_b, depth+1, "left", node])
+                        print("Left branch terminated")
+                    if(checkTerminalCase(y_train_right_b)==False):
+                        item_stack_fifo.append([X_train_right_b, y_train_right_b, depth+1, "right", node])
+                        print("Right branch terminated")
 
             root.depth_first_print()
 

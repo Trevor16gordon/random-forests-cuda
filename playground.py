@@ -4,6 +4,10 @@ from numpy import unravel_index
 from sklearn.model_selection import train_test_split
 
 
+def checkTerminalCase(lst):
+    return len(set(lst)) == 1
+
+
 
 df =pd.read_csv('data/IRIS.csv')
 X_all = df.iloc[:, 0:4]
