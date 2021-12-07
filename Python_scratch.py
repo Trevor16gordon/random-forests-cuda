@@ -115,51 +115,22 @@ class RandomForestFromScratch():
     def _calculate_score(self, X_train_b, y_train_b, dim, row):
 
         gina_list=[]
-        classes = ['Iris-setosa','Iris-virginica','Iris-versicolor']
-        labels =np.zeros(y_train_b.shape)
-        labels_pred =np.zeros(y_train_b.shape)
-        for j in range(len(classes)):
+        unique_classes = np.unique(y_train_b)
+        for cls_i in unique_classes:
 
-            #create the labels
-            labels = y_train_b==classes[j]
-            labels =labels[:,0].astype('uint8')
-            # print(np.sum(labels))
-
-            #print(f"Labels are {labels}")
-
-            #get the split value
             split_value = X_train_b[row,dim]
-            #print(f"the split value is {split_value}")
+            count = np.count_nonzero(y_train_b[X_train_b[:, dim]>=split_value] == cls_i)
+            count1 = np.count_nonzero(y_train_b[X_train_b[:, dim]<split_value] == cls_i)
 
-            #check greater than
-            labels_pred=(X_train_b[:,dim]>=split_value)
-            labels_pred=labels_pred.astype('uint8')
-            #print(f'the predicted labels are {labels_pred}')
+            gina_list.append( {"sign": 1, "num_correct": count, "possible_correct": len(X_train_b), "class": cls_i, "split_value": split_value, "dim": dim})
+            gina_list.append( {"sign": 0, "num_correct": count1, "possible_correct": len(X_train_b), "class": cls_i, "split_value": split_value, "dim": dim})
+   
 
-            #get the count
-            count=np.sum(np.array([(labels[i]==labels_pred[i]) & (labels[i]==1) for i in range(len(y_train_b))]).astype('uint8'))
-            #print(count)
+        num_correct = [gina_d["num_correct"] for gina_d in gina_list]
+        max=np.argmax(num_correct)
+        ret_val = gina_list[:][max]["num_correct"], gina_list[:][max]
+        # pprint.pprint(gina_list)
 
-            #check less than
-            labels_pred=(X_train_b[:,dim]<split_value)
-            labels_pred=labels_pred.astype('uint8')
-            #print(f'the 2nd  predicted labels are {labels_pred}')
-
-            #get the count
-            count1=np.sum(np.array([(labels[i]==labels_pred[i]) & (labels[i]==1) for i in range(len(y_train_b))]).astype('uint8'))
-            #print(count1)
-
-            if count>count1:
-                gina_list.append( {"sign": 1, "num_correct": count, "class": classes[j]})
-            else:
-                gina_list.append( {"sign": 0, "num_correct": count1, "class": classes[j]})
-
-        # print(gina_list); 
-        # print([gina_list[i]["num_correct"] for i in range(len(gina_list))])     
-        max=np.argmax([gina_list[i]["num_correct"] for i in range(len(gina_list))])
-        # print(max)
-        # print(gina_list[:][max]) 
-        return gina_list[:][max]["num_correct"],gina_list[:][max]
 
     def _choose_best_score(self, all_gina_scores, all_gina_score_info):
         # print("Checking the best score")
