@@ -4,15 +4,14 @@ from numpy import unravel_index
 from sklearn.model_selection import train_test_split
 from random import randrange
 
-def checkTerminalCase(lst):
-    return len(np.unique(list)) == 1
+def checkTerminalCase(labels):
+    return len(np.unique(labels)) == 1
 
 class RandomForestFromScratch():
 
     def __init__(self, n_estimators=1, max_depth=3):
         self.max_depth = max_depth
         self.n_estimators = n_estimators
-        pass
 
     def fit(self, X_train, y_train):
         self.X_n = len(X_train)
@@ -41,30 +40,40 @@ class RandomForestFromScratch():
                     parent] = item_stack_fifo.pop(0)
                 n, _ = X_train_b.shape
 
-                if n == 0:
-                    print("Not adding a node here")
-                    continue
+                is_terminal = checkTerminalCase(y_train_b) or ((depth + 1) >= self.max_depth)
+                if not is_terminal:
 
-                all_gina_scores = np.zeros((n, self.d))
-                all_gina_info = np.zeros((n, self.d), dtype="object")
-                print(f"ewdbwiuebfuwbef n={n} and d ={self.d}")
-                for dim in range(self.d):
-                    for row in range(n):
-                        # print(f"X_train_b={X_train_b} and its shape is {X_train_b.shape} and dim is {dim} and row is {row} and y_train_b {y_train_b}")
-                        # print(f"row{row} dim{dim}")
-                        all_gina_scores[row, dim],all_gina_info[row,dim]= self._calculate_score(X_train_b, y_train_b, dim, row)
-                #print(all_gina_scores)
+                    if n == 0:
+                        print("Not adding a node here")
+                        continue
+
+                    all_gina_scores = np.zeros((n, self.d))
+                    all_gina_info = np.zeros((n, self.d), dtype="object")
+                    # print(f"ewdbwiuebfuwbef n={n} and d ={self.d}")
+                    for dim in range(self.d):
+                        for row in range(n):
+                            # print(f"X_train_b={X_train_b} and its shape is {X_train_b.shape} and dim is {dim} and row is {row} and y_train_b {y_train_b}")
+                            # print(f"row{row} dim{dim}")
+                            all_gina_scores[row, dim],all_gina_info[row,dim]= self._calculate_score(X_train_b, y_train_b, dim, row)
+                    #print(all_gina_scores)
 
 
-                best_split_val,max_score_info,max_index = self._choose_best_score(all_gina_scores,all_gina_info)
-                print(f"best_split_value {best_split_val}, max_score_info {max_score_info}, max_index {max_index}")
+                    best_split_val,max_score_info,max_index = self._choose_best_score(all_gina_scores,all_gina_info)
+                    print(f"best_split_value {best_split_val}, max_score_info {max_score_info}, max_index {max_index}")
 
-                print(f"X_train_b.shape {X_train_b.shape}")
-                decision_boundary = X_train_b[max_index[0], max_index[1]]
+                    # print(f"X_train_b.shape {X_train_b.shape}")
+                    decision_boundary = X_train_b[max_index[0], max_index[1]]
 
-                print(f"node_dir {node_dir} current_depth: {depth}, best_dim {max_index[1]} best_split_val {best_split_val} decision_boundary {decision_boundary}")
+                    # print(f"node_dir {node_dir} current_depth: {depth}, best_dim {max_index[1]} best_split_val {best_split_val} decision_boundary {decision_boundary}")
 
-                node = TreeNode(dim=max_index[1], val=decision_boundary, depth=depth)
+                    node = TreeNode(dim=max_index[1], val=decision_boundary, depth=depth)
+
+                else: # Terminal Case
+                    (unique, counts) = np.unique(y_train_b, return_counts=True)
+                    highest_count_label = [x for _, x in sorted(zip(counts, unique), reverse=True)][0]
+                    print(f"highest_count_label is {highest_count_label}")
+                    node = TreeNode(dim=None, val=None, depth=depth, is_terminal=True, terminal_val=highest_count_label)
+                    
 
                 if parent is not None:
                     if node_dir == "left":
@@ -74,22 +83,18 @@ class RandomForestFromScratch():
                 else:
                     root = node
 
-                X_train_left_b = X_train_b[X_train_b[:,max_index[1]] <= decision_boundary, :]
-                X_train_right_b = X_train_b[X_train_b[:,max_index[1]] > decision_boundary, :]
-                y_train_left_b = y_train_b[X_train_b[:,max_index[1]] <= decision_boundary, :]
-                y_train_right_b = y_train_b[X_train_b[:,max_index[1]] > decision_boundary, :]
-
-                print(f"y_train_left_b{y_train_left_b} and y_train_right_b{y_train_right_b}")
-
-                if (depth + 1) < self.max_depth:
-                    if not checkTerminalCase(y_train_left_b):
-                        item_stack_fifo.append([X_train_left_b, y_train_left_b, depth+1, "left", node])
-                        print("Left branch terminated")
-                    if not checkTerminalCase(y_train_right_b):
-                        item_stack_fifo.append([X_train_right_b, y_train_right_b, depth+1, "right", node])
-                        print("Right branch terminated")
+                if not is_terminal:
+                    X_train_left_b = X_train_b[X_train_b[:,max_index[1]] <= decision_boundary, :]
+                    X_train_right_b = X_train_b[X_train_b[:,max_index[1]] > decision_boundary, :]
+                    y_train_left_b = y_train_b[X_train_b[:,max_index[1]] <= decision_boundary, :]
+                    y_train_right_b = y_train_b[X_train_b[:,max_index[1]] > decision_boundary, :]
+                    item_stack_fifo.append([X_train_left_b, y_train_left_b, depth+1, "left", node])
+                    item_stack_fifo.append([X_train_right_b, y_train_right_b, depth+1, "right", node])
+                else:
+                    print(f"Terminating {node_dir} node")
 
             root.depth_first_print()
+            self.root = root
 
     def _calculate_score(self, X_train_b, y_train_b, dim, row):
 
@@ -97,8 +102,6 @@ class RandomForestFromScratch():
         classes = ['Iris-setosa','Iris-virginica','Iris-versicolor']
         labels =np.zeros(y_train_b.shape)
         labels_pred =np.zeros(y_train_b.shape)
-        max_score = 0
-        max_score_info = {}
         for j in range(len(classes)):
 
             #create the labels
@@ -143,7 +146,7 @@ class RandomForestFromScratch():
         return gina_list[:][max]["num_correct"],gina_list[:][max]
 
     def _choose_best_score(self, all_gina_scores, all_gina_score_info):
-        print("Checking the best score")
+        # print("Checking the best score")
         max_list=[]
         max_list=np.flatnonzero(all_gina_scores == np.max(all_gina_scores))
         max_list=unravel_index(max_list,all_gina_scores.shape)
@@ -155,8 +158,7 @@ class RandomForestFromScratch():
         
         best_split_val = all_gina_scores[max_index[0],max_index[1]]
         max_score_info = all_gina_score_info[max_index[0],max_index[1]]
-        return (best_split_val,max_score_info,max_index)
-        pass
+        return (best_split_val, max_score_info, max_index)
 
 
 class TreeNode:
@@ -182,16 +184,26 @@ class TreeNode:
     def predict(self, X):
 
         test_val = X[:, self.dim]
-        if test_val >= self.val:
-            return self.right(X)
+
+        if not self.is_terminal:
+            labels = np.empty_like((len(X), 1))
+            X_r = test_val[test_val >= self.val]
+            X_l = test_val[test_val < self.val]
+            print(f"len(X) {len(X)} len(X_r) {len(X_r)} len(X_l) {len(X_l)}")
+            labels[test_val >= self.val] = self.right.predict(X_r)
+            labels[test_val < self.val] = self.left.predict(X_l)
         else:
-            return self.left(X)
+            labels = np.full((len(X), 1), self.terminal_val)
+
+        return labels
 
 
 
-df =pd.read_csv('data/IRIS.csv')
-X_all = df.iloc[:, 0:4]
-y_all = df.iloc[:, 4:]
-X_train, X_test, y_train, y_test = train_test_split(X_all, y_all, test_size=0.1)
-rf = RandomForestFromScratch(max_depth=3)
-rf.fit(X_train.to_numpy(), y_train.to_numpy())
+# df =pd.read_csv('data/IRIS.csv')
+# X_all = df.iloc[:, 0:4]
+# y_all = df.iloc[:, 4:]
+# X_train, X_test, y_train, y_test = train_test_split(X_all, y_all, test_size=0.1)
+# rf = RandomForestFromScratch(max_depth=3)
+# rf.fit(X_train.to_numpy(), y_train.to_numpy())
+# print("fit completed")
+# rf.root.depth_first_print()
