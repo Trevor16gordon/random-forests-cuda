@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 from random import randrange
 
 def checkTerminalCase(lst):
-    return len(set(lst)) == 1
+    return len(np.unique(list)) == 1
 
 class RandomForestFromScratch():
 
@@ -82,10 +82,10 @@ class RandomForestFromScratch():
                 print(f"y_train_left_b{y_train_left_b} and y_train_right_b{y_train_right_b}")
 
                 if (depth + 1) < self.max_depth:
-                    if(checkTerminalCase(y_train_left_b)==False):
+                    if not checkTerminalCase(y_train_left_b):
                         item_stack_fifo.append([X_train_left_b, y_train_left_b, depth+1, "left", node])
                         print("Left branch terminated")
-                    if(checkTerminalCase(y_train_right_b)==False):
+                    if not checkTerminalCase(y_train_right_b):
                         item_stack_fifo.append([X_train_right_b, y_train_right_b, depth+1, "right", node])
                         print("Right branch terminated")
 
