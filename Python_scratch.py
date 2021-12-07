@@ -3,6 +3,7 @@ import numpy as np
 from numpy import unravel_index
 from sklearn.model_selection import train_test_split
 from random import randrange
+import pdb
 
 def checkTerminalCase(labels):
     return len(np.unique(labels)) == 1
@@ -44,7 +45,7 @@ class RandomForestFromScratch():
                 if not is_terminal:
 
                     if n == 0:
-                        print("Not adding a node here")
+                        # print("Not adding a node here")
                         continue
 
                     all_gina_scores = np.zeros((n, self.d))
@@ -59,19 +60,36 @@ class RandomForestFromScratch():
 
 
                     best_split_val,max_score_info,max_index = self._choose_best_score(all_gina_scores,all_gina_info)
-                    print(f"best_split_value {best_split_val}, max_score_info {max_score_info}, max_index {max_index}")
+                    # print(f"best_split_value {best_split_val}, max_score_info {max_score_info}, max_index {max_index}")
 
                     # print(f"X_train_b.shape {X_train_b.shape}")
                     decision_boundary = X_train_b[max_index[0], max_index[1]]
 
                     # print(f"node_dir {node_dir} current_depth: {depth}, best_dim {max_index[1]} best_split_val {best_split_val} decision_boundary {decision_boundary}")
 
+                    
+
+                    X_train_left_b = X_train_b[X_train_b[:,max_index[1]] <= decision_boundary, :]
+                    X_train_right_b = X_train_b[X_train_b[:,max_index[1]] > decision_boundary, :]
+                    y_train_left_b = y_train_b[X_train_b[:,max_index[1]] <= decision_boundary, :]
+                    y_train_right_b = y_train_b[X_train_b[:,max_index[1]] > decision_boundary, :]
+
+                    if (len(X_train_left_b) == 0) or (len(X_train_right_b) == 0):
+                        print("Data didn't split into two. Making terminal here")
+                        is_terminal = True
+
+                if not is_terminal:
                     node = TreeNode(dim=max_index[1], val=decision_boundary, depth=depth)
 
                 else: # Terminal Case
                     (unique, counts) = np.unique(y_train_b, return_counts=True)
-                    highest_count_label = [x for _, x in sorted(zip(counts, unique), reverse=True)][0]
-                    print(f"highest_count_label is {highest_count_label}")
+                    sorted_count_values = [x for _, x in sorted(zip(counts, unique), reverse=True)]
+                    sorted_counts = [_ for _, x in sorted(zip(counts, unique), reverse=True)]
+                    highest_count_label = sorted_count_values[0]
+                    # print(f"highest_count_label is {highest_count_label}")
+                    # print(sorted_count_values)
+                    # print(sorted_counts)
+                    # pdb.set_trace()
                     node = TreeNode(dim=None, val=None, depth=depth, is_terminal=True, terminal_val=highest_count_label)
                     
 
@@ -84,14 +102,12 @@ class RandomForestFromScratch():
                     root = node
 
                 if not is_terminal:
-                    X_train_left_b = X_train_b[X_train_b[:,max_index[1]] <= decision_boundary, :]
-                    X_train_right_b = X_train_b[X_train_b[:,max_index[1]] > decision_boundary, :]
-                    y_train_left_b = y_train_b[X_train_b[:,max_index[1]] <= decision_boundary, :]
-                    y_train_right_b = y_train_b[X_train_b[:,max_index[1]] > decision_boundary, :]
+                    
                     item_stack_fifo.append([X_train_left_b, y_train_left_b, depth+1, "left", node])
                     item_stack_fifo.append([X_train_right_b, y_train_right_b, depth+1, "right", node])
                 else:
-                    print(f"Terminating {node_dir} node")
+                    pass
+                    # print(f"Terminating {node_dir} node")
 
             root.depth_first_print()
             self.root = root
@@ -171,29 +187,40 @@ class TreeNode:
         self.depth = depth
         self.is_terminal = is_terminal
         self.terminal_val = terminal_val
+        self.label_dtype = object
 
-    def depth_first_print(self):
-        print(
-            f"Node depth {self.depth} self.dim {self.dim} self.val {self.val}")
+    def depth_first_print(self, output_txt=""):
+        # print(
+        #     f"Node depth {self.depth} self.dim {self.dim} self.val {self.val}")
+
+        if self.is_terminal:
+            # print(f"Terminal class is {self.terminal_val}")
+            output_txt += "|   "*self.depth +  "|---" + f" class: {self.terminal_val}\n"
+        else:
+            output_txt += "|   "*self.depth +  "|---" + f"feature_{self.dim} >={self.val}\n"
         if self.left:
-            self.left.depth_first_print()
+            output_txt = self.left.depth_first_print(output_txt)
 
         if self.right:
-            self.right.depth_first_print()
+            output_txt = self.right.depth_first_print(output_txt)
+        if self.depth == 0:
+            print(output_txt)
+        return output_txt
 
     def predict(self, X):
 
         test_val = X[:, self.dim]
 
         if not self.is_terminal:
-            labels = np.empty_like((len(X), 1))
-            X_r = test_val[test_val >= self.val]
-            X_l = test_val[test_val < self.val]
-            print(f"len(X) {len(X)} len(X_r) {len(X_r)} len(X_l) {len(X_l)}")
+            labels = np.empty((len(test_val)), dtype=self.label_dtype)
+            X_r = X[test_val >= self.val, :]
+            X_l = X[test_val < self.val, :]
+            # print(f"len(X) {len(X)} len(X_r) {len(X_r)} len(X_l) {len(X_l)}")
             labels[test_val >= self.val] = self.right.predict(X_r)
             labels[test_val < self.val] = self.left.predict(X_l)
         else:
-            labels = np.full((len(X), 1), self.terminal_val)
+            labels = np.full((len(test_val)), self.terminal_val, dtype=self.label_dtype)
+
 
         return labels
 
