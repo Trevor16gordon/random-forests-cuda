@@ -4,6 +4,7 @@ from numpy import unravel_index
 from sklearn.model_selection import train_test_split
 from random import randrange
 import pdb
+import pprint
 
 def checkTerminalCase(labels):
     return len(np.unique(labels)) == 1
@@ -55,11 +56,10 @@ class RandomForestFromScratch():
                         for row in range(n):
                             # print(f"X_train_b={X_train_b} and its shape is {X_train_b.shape} and dim is {dim} and row is {row} and y_train_b {y_train_b}")
                             # print(f"row{row} dim{dim}")
-                            all_gina_scores[row, dim],all_gina_info[row,dim]= self._calculate_score(X_train_b, y_train_b, dim, row)
+                            all_gina_scores[row, dim], all_gina_info[row,dim] = self._calculate_score(X_train_b, y_train_b, dim, row)
                     #print(all_gina_scores)
 
-
-                    best_split_val,max_score_info,max_index = self._choose_best_score(all_gina_scores,all_gina_info)
+                    best_split_val,max_score_info, max_index = self._choose_best_score(all_gina_scores, all_gina_info, X_train_b)
                     # print(f"best_split_value {best_split_val}, max_score_info {max_score_info}, max_index {max_index}")
 
                     # print(f"X_train_b.shape {X_train_b.shape}")
@@ -114,31 +114,51 @@ class RandomForestFromScratch():
 
     def _calculate_score(self, X_train_b, y_train_b, dim, row):
 
-        gina_list=[]
         unique_classes = np.unique(y_train_b)
-        for cls_i in unique_classes:
 
-            split_value = X_train_b[row,dim]
-            count = np.count_nonzero(y_train_b[X_train_b[:, dim]>=split_value] == cls_i)
-            count1 = np.count_nonzero(y_train_b[X_train_b[:, dim]<split_value] == cls_i)
+        split_value = X_train_b[row,dim]
+        group1 = y_train_b[X_train_b[:, dim]>=split_value]
+        group2 = y_train_b[X_train_b[:, dim]<split_value]
 
-            gina_list.append( {"sign": 1, "num_correct": count, "possible_correct": len(X_train_b), "class": cls_i, "split_value": split_value, "dim": dim})
-            gina_list.append( {"sign": 0, "num_correct": count1, "possible_correct": len(X_train_b), "class": cls_i, "split_value": split_value, "dim": dim})
-   
+        p1 = len(group1) / (len(group1) + len(group2))
+        p2 = len(group2) / (len(group1) + len(group2))
 
-        num_correct = [gina_d["num_correct"] for gina_d in gina_list]
-        max=np.argmax(num_correct)
-        ret_val = gina_list[:][max]["num_correct"], gina_list[:][max]
-        # pprint.pprint(gina_list)
+        group1_counts = np.zeros(len(unique_classes))
+        group2_counts = np.zeros(len(unique_classes))
 
+        if len(group1) > 0:
+            for ii, cls_i in enumerate(unique_classes):
+                group1_counts[ii] = np.count_nonzero(group1 == cls_i) / len(group1)
+        if len(group2) > 0:
+            for ii, cls_i in enumerate(unique_classes):
+                group2_counts[ii] = np.count_nonzero(group2 == cls_i) / len(group2)
 
-    def _choose_best_score(self, all_gina_scores, all_gina_score_info):
+        impurity = p1 * sum([x**2 for x in group1_counts]) + p2 * sum([x**2 for x in group2_counts])
+
+        info =  {"sign": 1, "num_correct": impurity, "possible_correct": len(X_train_b), "split_value": split_value, "dim": dim}
+        
+
+        return impurity, info
+
+    def _choose_best_score(self, all_gina_scores, all_gina_score_info, X_train_b):
         # print("Checking the best score")
         max_list=[]
         max_list=np.flatnonzero(all_gina_scores == np.max(all_gina_scores))
-        max_list=unravel_index(max_list,all_gina_scores.shape)
-        max_index=randrange(len(max_list[0]))
-        max_index=[max_list[0][max_index],max_list[1][max_index]]
+        # print(f" number of best splits is {len(max_list)}")
+        # print(all_gina_scores)
+        
+        max_list=unravel_index(max_list, all_gina_scores.shape)
+        max_index_id=randrange(len(max_list[0]))
+
+        info_of_max = all_gina_score_info[all_gina_scores == np.max(all_gina_scores)]
+        df_info_of_max = pd.DataFrame(info_of_max.tolist())
+        df_info_of_max = df_info_of_max.sort_values("dim")
+        
+        # for jj in range(len(max_list[0])):
+        #     print(f"max_index_id is {jj} and decision_boundary is {X_train_b[max_list[0][jj], max_list[1][jj]]}")
+            
+        max_index=[max_list[0][max_index_id], max_list[1][max_index_id]]
+
         
         # print(max_list)
         # print(max_index)
