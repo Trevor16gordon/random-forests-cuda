@@ -6,6 +6,7 @@ from scipy.stats import mode
 from random import randrange
 from sklearn.metrics import confusion_matrix
 import pdb
+from cuda_utils import DecisionTreeCudaUtils
 
 
 class RandomForestFromScratch():
@@ -180,6 +181,22 @@ class DecisionTreeNativePython(DecisionTreeBase):
         y_l = y[X[:,dim] <= bound, :]
         y_r = y[X[:,dim] > bound, :]
         return (X_l, y_l, X_r, y_r)
+
+
+class DecisionTreeCudaBaise(DecisionTreeBase):
+
+    def __init__(self, max_depth):
+        super().__init__(max_depth)
+        self.cuda_utils = DecisionTreeCudaUtils()
+
+    def calculate_split_scores(self, X: np.array, y: np.array) -> np.array:
+        return self.cuda_utils.calculate_split_scores(X, y)
+
+    def choose_best_score(self, scores: np.array) -> list:
+        return self.cuda_utils.choose_best_score(scores)
+
+    def split_data(self, X: np.array, y: np.array, bound: float, dim: float) -> tuple:
+        return self.cuda_utils.split_data(X, y, bound, dim)
 
 
 class TreeNode:
