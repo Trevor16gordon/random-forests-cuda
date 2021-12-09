@@ -1,4 +1,3 @@
-from numpy.core.shape_base import block
 import pandas as pd
 import numpy as np
 from numpy import unravel_index
@@ -11,13 +10,13 @@ import pycuda.gpuarray as gpuArray
 import pycuda.autoinit
 from pycuda.compiler import SourceModule
 
-#Helps us check the terminal case of the node and returns a flag 1
+# Helps us check the terminal case of the node and returns a flag 1
 def checkTerminalCase(labels):
     return len(np.unique(labels)) == 1
 
-#The class Treenode is used to build each node of the tree which contains the split-value in the nth dimension and
-#other key parameters such as it's parent and child node information which is used to build the tree
-#It also has the predict function which is used to predict the test data later on
+# The class Treenode is used to build each node of the tree which contains the split-value in the nth dimension and
+# other key parameters such as it's parent and child node information which is used to build the tree
+# It also has the predict function which is used to predict the test data later on
 
 class TreeNode:
 
@@ -69,7 +68,7 @@ class TreeNode:
 
 # This class contains covers mainly the training part of the data and creation of the tree.It also has the kernel functions which
 # used to speed up the calculations using the GPU's.
-class RandomForest_kernel():
+class RandomForest():
     def __init__(self, n_estimators=1, max_depth=3):
 
         self.mod = self.getSourceModule()
@@ -87,7 +86,6 @@ class RandomForest_kernel():
         self.d = len(X_train[0])
         self.weights = (1/self.X_n)*np.ones(self.X_n)
 
-        #Training all the N number of trees
         for _ in range(self.n_estimators):
 
             choices = np.random.choice(range(self.X_n), p=self.weights, size=self.X_n)
@@ -96,7 +94,7 @@ class RandomForest_kernel():
 
             item_stack_fifo = []
 
-            item_stack_fifo.append([X_train_b, y_train_b, 0, "start", None])#appending the parent node on the stack
+            item_stack_fifo.append([X_train_b, y_train_b, 0, "start", None])
 
             max_iters = 100
             tot_count = 0
@@ -118,29 +116,26 @@ class RandomForest_kernel():
                         continue
 
                     all_gina_scores = np.zeros((n, self.d))
-                    all_gina_info = np.zeros((n, self.d), dtype="object")
-
-                    #Calculating the Gina score
-                    all_gina_scores, all_gina_info = self._calculate_score(X_train_b, y_train_b)
+                    # print(f"n={n} and d ={self.d}")
+                    
+                    all_gina_scores,time1 = self._calculate_score(X_train_b, y_train_b)
                     #print(all_gina_scores)
 
-                    #Getting the best Gina score
-                    best_split_val,max_score_info, max_index = self._choose_best_score(all_gina_scores, all_gina_info, X_train_b)
+                    max_index,time2 = self._choose_best_score(all_gina_scores)
                     # print(f"best_split_value {best_split_val}, max_score_info {max_score_info}, max_index {max_index}")
 
-                    #Creating the decision boundary
+                    # print(f"X_train_b.shape {X_train_b.shape}")
                     decision_boundary = X_train_b[max_index[0], max_index[1]]
 
                     # print(f"node_dir {node_dir} current_depth: {depth}, best_dim {max_index[1]} best_split_val {best_split_val} decision_boundary {decision_boundary}")
 
                     
-                    #Creating the left and right children for the given node
+
                     X_train_left_b = X_train_b[X_train_b[:,max_index[1]] <= decision_boundary, :]
                     X_train_right_b = X_train_b[X_train_b[:,max_index[1]] > decision_boundary, :]
                     y_train_left_b = y_train_b[X_train_b[:,max_index[1]] <= decision_boundary, :]
                     y_train_right_b = y_train_b[X_train_b[:,max_index[1]] > decision_boundary, :]
-                    
-                    #Checking if the children which have been created are redundant or not, if so, we declare it to be terminal
+
                     if (len(X_train_left_b) == 0) or (len(X_train_right_b) == 0):
                         print("Data didn't split into two. Making terminal here")
                         is_terminal = True
@@ -151,6 +146,7 @@ class RandomForest_kernel():
                 else: # Terminal Case
                     (unique, counts) = np.unique(y_train_b, return_counts=True)
                     sorted_count_values = [x for _, x in sorted(zip(counts, unique), reverse=True)]
+                    sorted_counts = [_ for _, x in sorted(zip(counts, unique), reverse=True)]
                     highest_count_label = sorted_count_values[0]
                     # print(f"highest_count_label is {highest_count_label}")
                     # print(sorted_count_values)
@@ -174,14 +170,12 @@ class RandomForest_kernel():
                 else:
                     pass
                     # print(f"Terminating {node_dir} node")
-            
-            #Printing the whole tree
+
             root.depth_first_print()
             self.root = root
 
 
     def _calculate_score(self, X_train_b, y_train_b):
-
         unique_classes = np.unique(y_train_b)
         #Making categorical data into integers
         for j,label in enumerate(unique_classes):
@@ -227,6 +221,73 @@ class RandomForest_kernel():
 
         #################Check with trevor about gina_info requirement
         return impurity_scores,time
+    
+    def _choose_best_score(self, all_gina_scores):
+
+        #Fetch the kernel
+        start =cuda.Event()
+        end = cuda.Event()
+
+        find_best_gina_score=self.mod.get("find_best_gina_score")
+
+        #Grid and block dimensions
+        blockDim=(1024,1024,1)
+        gridDim =(self.d//1024+1,self.d//1024+1,1)
+
+        #Converting to 32 bit
+        row,dim =np.float32(all_gina_scores.shape)
+        all_gina_scores=all_gina_scores.astype(np.float32)
+        
+
+        #memory allocation
+        all_gina_scores_gpu=gpuArray.to_gpu(all_gina_scores)
+
+        max_value =np.zeros(1)
+        max_value =max_value.astype(np.float32)
+        max_value_gpu=gpuArray.to_gpu(max_value)
+
+        index=np.zeros(2)
+        index=index.astype(np.float32)
+        index_gpu=gpuArray.to_gpu(index)
+
+
+        #run and time the kernel
+        start.record()
+        find_best_gina_score(max_value_gpu,index_gpu,all_gina_scores_gpu,row,dim,block=blockDim,grid=gridDim)
+
+        # Wait for the event to complete
+        end.record()
+        end.synchronize()
+        time = start.time_till(end)
+
+        #Fetch the impurity scores
+        index=index_gpu.get()
+
+        return(index,time)
+
+
+#Main Program
+if __name__ == "__main__":
+    df =pd.read_csv('data/IRIS.csv')
+X_all = df.iloc[:, 0:4]
+y_all = df.iloc[:, 4:]
+X_train, X_test, y_train, y_test = train_test_split(X_all, y_all, test_size=0.1)
+rf = RandomForest(max_depth=3)
+rf.fit(X_train.to_numpy(), y_train.to_numpy())
+print("fit completed")
+rf.root.depth_first_print()
+predicts=rf.root.predict(X_test.to_numpy())
+confusion=confusion_matrix(predicts,y_test.to_numpy(),labels=['Iris-setosa','Iris-versicolor','Iris-virginica'])
+print(confusion)
+
+
+
+
+
+
+
+
+
 
 
 

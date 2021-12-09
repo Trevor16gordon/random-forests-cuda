@@ -142,6 +142,7 @@ class RandomForestFromScratch():
         # print("Checking the best score")
         max_list=[]
         max_list=np.flatnonzero(all_gina_scores == np.max(all_gina_scores))
+        print(max_list)
         # print(f" number of best splits is {len(max_list)}")
         # print(all_gina_scores)
         
