@@ -3,8 +3,7 @@ import numpy as np
 from numpy import unravel_index
 from sklearn.model_selection import train_test_split
 from random import randrange
-import pdb
-import pprint
+from sklearn.metrics import confusion_matrix
 
 def checkTerminalCase(labels):
     return len(np.unique(labels)) == 1
@@ -50,16 +49,15 @@ class RandomForestFromScratch():
                         continue
 
                     all_gina_scores = np.zeros((n, self.d))
-                    all_gina_info = np.zeros((n, self.d), dtype="object")
                     # print(f"ewdbwiuebfuwbef n={n} and d ={self.d}")
                     for dim in range(self.d):
                         for row in range(n):
                             # print(f"X_train_b={X_train_b} and its shape is {X_train_b.shape} and dim is {dim} and row is {row} and y_train_b {y_train_b}")
                             # print(f"row{row} dim{dim}")
-                            all_gina_scores[row, dim], all_gina_info[row,dim] = self._calculate_score(X_train_b, y_train_b, dim, row)
+                            all_gina_scores[row, dim] = self._calculate_score(X_train_b, y_train_b, dim, row)
                     #print(all_gina_scores)
 
-                    best_split_val,max_score_info, max_index = self._choose_best_score(all_gina_scores, all_gina_info, X_train_b)
+                    max_index = self._choose_best_score(all_gina_scores)
                     # print(f"best_split_value {best_split_val}, max_score_info {max_score_info}, max_index {max_index}")
 
                     # print(f"X_train_b.shape {X_train_b.shape}")
@@ -135,37 +133,25 @@ class RandomForestFromScratch():
 
         impurity = p1 * sum([x**2 for x in group1_counts]) + p2 * sum([x**2 for x in group2_counts])
 
-        info =  {"sign": 1, "num_correct": impurity, "possible_correct": len(X_train_b), "split_value": split_value, "dim": dim}
+        # info =  {"sign": 1, "num_correct": impurity, "possible_correct": len(X_train_b), "split_value": split_value, "dim": dim}
         
 
-        return impurity, info
+        return impurity
 
-    def _choose_best_score(self, all_gina_scores, all_gina_score_info, X_train_b):
+    def _choose_best_score(self, all_gina_scores):
         # print("Checking the best score")
         max_list=[]
         max_list=np.flatnonzero(all_gina_scores == np.max(all_gina_scores))
+        print(max_list)
         # print(f" number of best splits is {len(max_list)}")
         # print(all_gina_scores)
         
         max_list=unravel_index(max_list, all_gina_scores.shape)
-        max_index_id=randrange(len(max_list[0]))
-
-        info_of_max = all_gina_score_info[all_gina_scores == np.max(all_gina_scores)]
-        df_info_of_max = pd.DataFrame(info_of_max.tolist())
-        df_info_of_max = df_info_of_max.sort_values("dim")
-        
-        # for jj in range(len(max_list[0])):
-        #     print(f"max_index_id is {jj} and decision_boundary is {X_train_b[max_list[0][jj], max_list[1][jj]]}")
-            
-        max_index=[max_list[0][max_index_id], max_list[1][max_index_id]]
-
-        
+        max_index_id=randrange(len(max_list[0]))    
+        max_index=[max_list[0][max_index_id], max_list[1][max_index_id]] 
         # print(max_list)
         # print(max_index)
-        
-        best_split_val = all_gina_scores[max_index[0],max_index[1]]
-        max_score_info = all_gina_score_info[max_index[0],max_index[1]]
-        return (best_split_val, max_score_info, max_index)
+        return (max_index)
 
 
 class TreeNode:
@@ -217,11 +203,14 @@ class TreeNode:
 
 
 
-# df =pd.read_csv('data/IRIS.csv')
-# X_all = df.iloc[:, 0:4]
-# y_all = df.iloc[:, 4:]
-# X_train, X_test, y_train, y_test = train_test_split(X_all, y_all, test_size=0.1)
-# rf = RandomForestFromScratch(max_depth=3)
-# rf.fit(X_train.to_numpy(), y_train.to_numpy())
-# print("fit completed")
-# rf.root.depth_first_print()
+df =pd.read_csv('data/IRIS.csv')
+X_all = df.iloc[:, 0:4]
+y_all = df.iloc[:, 4:]
+X_train, X_test, y_train, y_test = train_test_split(X_all, y_all, test_size=0.1)
+rf = RandomForestFromScratch(max_depth=3)
+rf.fit(X_train.to_numpy(), y_train.to_numpy())
+print("fit completed")
+rf.root.depth_first_print()
+predicts=rf.root.predict(X_test.to_numpy())
+confusion=confusion_matrix(predicts,y_test.to_numpy(),labels=['Iris-setosa','Iris-versicolor','Iris-virginica'])
+print(confusion)
