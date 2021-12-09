@@ -69,11 +69,11 @@ class DecisionTree():
         while item_stack_fifo and (tot_count < max_iters):
 
             tot_count += 1
-            [X_train, y_train, depth, node_dir,
+            [X_train_b, y_train_b, depth, node_dir,
                 parent] = item_stack_fifo.pop(0)
-            n, _ = X_train.shape
+            n, _ = X_train_b.shape
 
-            is_terminal = checkTerminalCase(y_train) or ((depth + 1) >= self.max_depth)
+            is_terminal = checkTerminalCase(y_train_b) or ((depth + 1) >= self.max_depth)
             if not is_terminal:
 
                 if n == 0:
@@ -84,15 +84,15 @@ class DecisionTree():
                 # print(f"ewdbwiuebfuwbef n={n} and d ={self.d}")
                 for dim in range(self.d):
                     for row in range(n):
-                        all_gina_scores[row, dim] = self._calculate_score(X_train, y_train, dim, row)
+                        all_gina_scores[row, dim] = self._calculate_score(X_train_b, y_train_b, dim, row)
 
                 max_index = self._choose_best_score(all_gina_scores)
 
-                decision_bound = X_train[max_index[0], max_index[1]]
-                X_train_left_b = X_train[X_train[:,max_index[1]] <= decision_bound, :]
-                X_train_right_b = X_train[X_train[:,max_index[1]] > decision_bound, :]
-                y_train_left_b = y_train[X_train[:,max_index[1]] <= decision_bound, :]
-                y_train_right_b = y_train[X_train[:,max_index[1]] > decision_bound, :]
+                decision_bound = X_train_b[max_index[0], max_index[1]]
+                X_train_left_b = X_train_b[X_train_b[:,max_index[1]] <= decision_bound, :]
+                X_train_right_b = X_train_b[X_train_b[:,max_index[1]] > decision_bound, :]
+                y_train_left_b = y_train_b[X_train_b[:,max_index[1]] <= decision_bound, :]
+                y_train_right_b = y_train_b[X_train_b[:,max_index[1]] > decision_bound, :]
 
                 if (len(X_train_left_b) == 0) or (len(X_train_right_b) == 0):
                     is_terminal = True
@@ -102,7 +102,7 @@ class DecisionTree():
 
             # Terminal Case
             else: 
-                (unique, counts) = np.unique(y_train, return_counts=True)
+                (unique, counts) = np.unique(y_train_b, return_counts=True)
                 sorted_count_values = [x for _, x in sorted(zip(counts, unique), reverse=True)]
                 highest_count_label = sorted_count_values[0]
                 node = TreeNode(dim=None, val=None, depth=depth, is_terminal=True, terminal_val=highest_count_label)
