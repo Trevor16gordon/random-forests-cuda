@@ -7,9 +7,6 @@ from random import randrange
 from sklearn.metrics import confusion_matrix
 import pdb
 
-def checkTerminalCase(labels):
-    return len(np.unique(labels)) == 1
-
 
 class RandomForestFromScratch():
 
@@ -31,7 +28,7 @@ class RandomForestFromScratch():
             y_train_b = y_train[choices]
 
 
-            dt = DecisionTree(max_depth=self.max_depth)
+            dt = DecisionTreeNativePython(max_depth=self.max_depth)
             dt.fit(X_train_b, y_train_b)
             self.dec_trees.append(dt.root)
 
@@ -46,24 +43,37 @@ class RandomForestFromScratch():
         most_popular = mode(all_res, axis=0).mode
         return most_popular
 
-class DecisionTree():
 
-    def __init__(self, max_depth=3):
+class DecisionTreeBase():
+    """Base decision tree to inherit from
+
+    Returns:
+        [type]: [description]
+    """
+
+    def __init__(self, max_depth):
         self.max_depth = max_depth
+
+    def check_terminal_case(self, labels):
+        return len(np.unique(labels)) == 1
+
+    def calculate_split_scores(self, X: np.array, y: np.array) -> np.array:
+        raise NotImplementedError()
+
+    def choose_best_score(self, scores: np.array) -> list:
+        raise NotImplementedError()
+
+    def split_data(self, X: np.array, y: np.array, bound: float, dim: float) -> tuple:
+        raise NotImplementedError()
 
     def fit(self, X_train, y_train):
         self.X_n = len(X_train)
         self.d = len(X_train[0])
         self.weights = (1/self.X_n)*np.ones(self.X_n)
-
-
         item_stack_fifo = []
-
         item_stack_fifo.append([X_train, y_train, 0, "start", None])
-
         max_iters = 100
         tot_count = 0
-
         root = None
 
         while item_stack_fifo and (tot_count < max_iters):
@@ -73,26 +83,20 @@ class DecisionTree():
                 parent] = item_stack_fifo.pop(0)
             n, _ = X_train_b.shape
 
-            is_terminal = checkTerminalCase(y_train_b) or ((depth + 1) >= self.max_depth)
+            is_terminal = self.check_terminal_case(y_train_b) or ((depth + 1) >= self.max_depth)
             if not is_terminal:
 
                 if n == 0:
-                    # print("Not adding a node here")
                     continue
-
-                all_gina_scores = np.zeros((n, self.d))
-                # print(f"ewdbwiuebfuwbef n={n} and d ={self.d}")
-                for dim in range(self.d):
-                    for row in range(n):
-                        all_gina_scores[row, dim] = self._calculate_score(X_train_b, y_train_b, dim, row)
-
-                max_index = self._choose_best_score(all_gina_scores)
-
+                
+                all_gina_scores = self.calculate_split_scores(X_train_b, y_train_b)               
+                max_index = self.choose_best_score(all_gina_scores)
                 decision_bound = X_train_b[max_index[0], max_index[1]]
-                X_train_left_b = X_train_b[X_train_b[:,max_index[1]] <= decision_bound, :]
-                X_train_right_b = X_train_b[X_train_b[:,max_index[1]] > decision_bound, :]
-                y_train_left_b = y_train_b[X_train_b[:,max_index[1]] <= decision_bound, :]
-                y_train_right_b = y_train_b[X_train_b[:,max_index[1]] > decision_bound, :]
+                
+                (X_train_left_b,
+                y_train_left_b,
+                X_train_right_b,
+                y_train_right_b) = self.split_data(X_train_b, y_train_b, decision_bound, max_index[1])
 
                 if (len(X_train_left_b) == 0) or (len(X_train_right_b) == 0):
                     is_terminal = True
@@ -124,6 +128,20 @@ class DecisionTree():
                 pass
         self.root = root
 
+    
+class DecisionTreeNativePython(DecisionTreeBase):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def calculate_split_scores(self, X: np.array, y: np.array) -> np.array:
+        n, d = X.shape
+        all_gina_scores = np.zeros((n, d))
+        for dim in range(d):
+            for row in range(n):
+                all_gina_scores[row, dim] = self._calculate_score(X, y, dim, row)
+        return all_gina_scores
+
     def _calculate_score(self, X_train_b, y_train_b, dim, row):
 
         unique_classes = np.unique(y_train_b)
@@ -148,13 +166,20 @@ class DecisionTree():
         impurity = p1 * sum([x**2 for x in group1_counts]) + p2 * sum([x**2 for x in group2_counts])
         return impurity
 
-    def _choose_best_score(self, all_gina_scores):
+    def choose_best_score(self, scores: np.array) -> list:
         max_list=[]
-        max_list=np.flatnonzero(all_gina_scores == np.max(all_gina_scores))
-        max_list=unravel_index(max_list, all_gina_scores.shape)
+        max_list=np.flatnonzero(scores == np.max(scores))
+        max_list=unravel_index(max_list, scores.shape)
         max_index_id=randrange(len(max_list[0]))    
         max_index=[max_list[0][max_index_id], max_list[1][max_index_id]]
         return (max_index)
+
+    def split_data(self, X: np.array, y: np.array, bound: float, dim: float) -> tuple:
+        X_l = X[X[:,dim] <= bound, :]
+        X_r = X[X[:,dim] > bound, :]
+        y_l = y[X[:,dim] <= bound, :]
+        y_r = y[X[:,dim] > bound, :]
+        return (X_l, y_l, X_r, y_r)
 
 
 class TreeNode:
