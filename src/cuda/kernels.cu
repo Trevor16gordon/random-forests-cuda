@@ -1,5 +1,6 @@
 """
-__global__ calculate_gina_scores(float* impurity_sscores,float* X_train,float* y_train,const int unique_classes,const int row,const int dim){
+// Helps in the calculation of the gina scores
+__global__ calculate_gina_scores(float* impurity_scores,float* X_train,float* y_train,const int unique_classes,const int l,const int w){
     int Dim = threadIdx.x+blockIdx.x*blockDim.x;
     int Row = threadIdx.y+blockIdx.y*blockDim.y;
     if(Dim < w && Row < l){
@@ -48,9 +49,9 @@ __global__ calculate_gina_scores(float* impurity_sscores,float* X_train,float* y
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//Finds the max value of all the gina impurity scores that we have calculated
 #define BLOCKSIZE 1024
-//send an array of indices called index(start from 0 to l-1) which is the 2nd argument in here from python itself.
-__global__ find_best_gina_score(float* index,float* all_gina_scores, const int l,const int w){
+__global__ find_best_gina_score(float* index,float* all_gina_scores, const int len){
     //loading segment of data in local memory
 	__shared__ float scan_array[2*BLOCKSIZE];
 	unsigned int t =threadIdx.x;
@@ -73,12 +74,27 @@ __global__ find_best_gina_score(float* index,float* all_gina_scores, const int l
     for (unsigned int stride = blockDim.x;stride > 0; stride /= 2){
         __syncthreads();
         if (t < stride){
-           if(partialSum[t] < partialSum[t+stride]){
-               partialSum[t]=partialSum[t+stride];
+           if(scan_array[t] < scan_array[t+stride]){
+               scan_array[t]=scan_array[t+stride];
                index[t]=index[t+stride];
            }
         }            
     }
     //This returns max value and index at the 1st index i.e. 0 in all_gina_scores and index matrices respectively
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//takes the input matrix X and returns the labels for l or r
+__global__ split_data(float* label,float* X, const int bound,const int dim, const int l,const int w){
+    int Row = threadIdx.x+blockIdx.x*blockDim.x;
+    if(Row < l){
+        if(X[Row*w+dim] <= bound){
+            label[Row*w+dim]=1;
+        }
+        else{
+            label[Row*w+dim]=0;
+        }
+    }
+    
 }
 """
