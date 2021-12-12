@@ -27,70 +27,61 @@ class DecisionTreeCudaUtils():
         self.mod = self.get_source_module()
         pass
     
-    def get_block_and_grid_dim(self, length):
-        """Get block and grid dimensions.
-        """
-        blocksize = 32
-        blockDim = (blocksize, 1, 1)
-        gridDim = ((length // blocksize) + 1, 1, 1)
-        return blockDim, gridDim
-
     def get_source_module(self):
         # kernel code wrapper
         kernelwrapper = """
         // Helps in the calculation of the gina scores
-        __global__ calculate_gina_scores(float* impurity_scores,float* X_train,float* y_train,const int unique_classes,const int l,const int w){
-            int Dim = threadIdx.x+blockIdx.x*blockDim.x;
-            int Row = threadIdx.y+blockIdx.y*blockDim.y;
+        __global__ void calculate_gina_scores(float* impurity_scores,float* X_train,int* y_train,const int unique_classes,const int l,const int w){
+            int Dim = threadIdx.y+blockIdx.y*blockDim.y;
+            int Row = threadIdx.x+blockIdx.x*blockDim.x;
+
             if(Dim < w && Row < l){
                 float split_value =X_train[Row * w+ Dim];
 
-                int group1_counts[20] = {0};//Max of 20 dimensions which can be increased
-                group2_counts =group1_counts;
-                int length1=0;
-                int length2=0;
-                int sum1=0;
-                int sum2=0;
+                float group1_counts[20] = {0};//Max of 20 dimensions which can be increased
+                float group2_counts[20] = {0};
+                float length1=0;
+                float length2=0;
+                float sum1=0;
+                float sum2=0;
 
                 for(int i=0;i<l;i++){
                     if(X_train[i* w+ Dim]>=split_value){
                         //Belongs to group 1
-                        group1_counts[y[i]]++;
+                        group1_counts[y_train[i]]++;
                         length1++;
                     }
                     else{
                         //Belongs to group 2
-                        group2_counts[y[i]]++;
+                        group2_counts[y_train[i]]++;
                         length2++;
                     }
                 }
-                int p1 = length1/(length1+length2);
-                int p2 = length2/(length1+length2);
+                float p1 = length1/(length1+length2);
+                float p2 = length2/(length1+length2);
 
                 if(length1 > 0){
                     for(int i=0;i<unique_classes;i++){
-                        sum1+=(group1_counts*group1_counts)/(length1*length1);
+                        sum1+=(group1_counts[i]*group1_counts[i])/(length1*length1);
                     }
                 }
                 if(length2 > 0){
                     for(int i=0;i<unique_classes;i++){
-                        sum2+=(group2_counts*group2_counts)/(length2*length2);
+                        sum2+=(group2_counts[i]*group2_counts[i])/(length2*length2);
                     }
                 }
 
-                impurity = p1*sum1+p2*sum2;
+                float impurity = p1*sum1+p2*sum2;
                 // Write our new pixel value out
-                impurity_scores[Row * w + Dim] = (impurity);
+                impurity_scores[Row * w + Dim] =impurity;
 
             }
         }
 
-
-
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         //Finds the max value of all the gina impurity scores that we have calculated
         #define BLOCKSIZE 1024
-        __global__ void find_best_gina_score(float* index,float* all_gina_scores, const int len){
+        __global__ void find_best_gina_score(int* index,float* all_gina_scores, const int len){
             //loading segment of data in local memory
             __shared__ float scan_array[2*BLOCKSIZE];
             unsigned int t =threadIdx.x;
@@ -99,15 +90,8 @@ class DecisionTreeCudaUtils():
             if(start+t <len){
                 scan_array[t]=all_gina_scores[start+t];
             }
-            else{
-                scan_array[t]=0;
-            }
-
             if(start+blockDim.x+t <len){
                 scan_array[blockDim.x+t]=all_gina_scores[start+blockDim.x+t];
-            }
-            else{
-                scan_array[blockDim.x+t]=0;
             }
 
             for (unsigned int stride = blockDim.x;stride > 0; stride /= 2){
@@ -149,19 +133,21 @@ class DecisionTreeCudaUtils():
         start =cuda.Event()
         end = cuda.Event()
 
-        calculate_gina_scores=self.mod.get("calculate_gina_scores")
-
-        #Grid and block dimensions
-        blockDim=(1024,X_train_b.shape[1],1)
-        gridDim =(X_train_b.shape[0]//1024+1,X_train_b.shape[1]//1024+1,1)
+        calculate_scores=self.mod.get_function("calculate_gina_scores")
 
         #Converting to 32 bit
         X_train_b = X_train_b.astype(np.float32)
-        y_train_b =y_train_b.astype(np.float32)
+        y_train_b =y_train_b.astype(np.int32)
 
-        unique_classes=len(unique_classes).astype(np.float32)
-        row = X_train_b.shape[0].astype(np.float32)
-        dim = X_train_b.shape[1].astype(np.float32)
+        unique_classes=np.array(len(unique_classes)).astype(np.int32)
+        row = np.array(X_train_b.shape[0]).astype(np.int32)
+        dim = np.array(X_train_b.shape[1]).astype(np.int32)
+
+        #Grid and block dimensions
+        blocksize=64
+        blockDim=(blocksize,X_train_b.shape[1],1)
+        gridDim =(X_train_b.shape[0]//blocksize+1,X_train_b.shape[1]//blocksize+1,1)
+
 
         #Memory allocation
         X_train_b_gpu = gpuArray.to_gpu(X_train_b)
@@ -170,7 +156,7 @@ class DecisionTreeCudaUtils():
         
         #run and time the kernel
         start.record()
-        calculate_gina_scores(impurity_scores_gpu,X_train_b_gpu,y_train_b_gpu,unique_classes,row,dim,block=blockDim,grid=gridDim)
+        calculate_scores(impurity_scores_gpu,X_train_b_gpu,y_train_b_gpu,unique_classes,row,dim,block=blockDim,grid=gridDim)
 
         # Wait for the event to complete
         end.record()
@@ -205,7 +191,7 @@ class DecisionTreeCudaUtils():
 
         #memory allocation
         all_gina_scores_gpu=gpuArray.to_gpu(all_gina_scores_flatten)
-        index=index.astype(np.float32)
+        index=index.astype(np.int32)
         index_gpu=gpuArray.to_gpu(index)
 
         #run and time the kernel
@@ -219,6 +205,7 @@ class DecisionTreeCudaUtils():
 
         #Fetch the impurity scores
         index=index_gpu.get()
+        gina_scores=all_gina_scores_gpu.get()
         max_index=unravel_index(int(index[0]),all_gina_scores.shape)
 
         return(max_index,time)
@@ -236,22 +223,20 @@ class DecisionTreeCudaUtils():
         gridDim =(X.shape[0]//1024+1,1,1)
         #Converting to 32 bit
         labels = np.zeros(y.shape).astype(np.float32)
-        X = X.astype(np.float32)
+        X_32 = X.astype(np.float32)
         row = np.array([X.shape[0]], dtype=np.int32)
         col = np.array([X.shape[1]], dtype=np.int32)
         bound = np.array([bound], dtype=np.int32)
         dim =np.array([dim], dtype=np.int32)
         #Memory allocation
-        X_gpu = gpuArray.to_gpu(X) 
+        X_gpu = gpuArray.to_gpu(X_32) 
         labels_gpu = gpuArray.to_gpu(labels)
 
         #run and time the kernel
-        print("starting the kernel")
         start.record()
         split_data(labels_gpu,X_gpu,bound,dim,row,col,block=blockDim,grid=gridDim)
 
         # Wait for the event to complete
-        print("ending the kernel")
         end.record()
         end.synchronize()
         time = start.time_till(end)
@@ -260,8 +245,11 @@ class DecisionTreeCudaUtils():
         labels = labels_gpu.get()
 
         #code for splitting the child
-        X_l = X[labels==0, :]
-        X_r = X[labels==1, :]
+        print(labels==0)
         y_l = y[labels==0]
         y_r = y[labels==1]
+        print(y_l,y_r)
+        print(X[0][:])
+        X_l = X[(labels==0),:]
+        X_r = X[(labels==1),:]
         return (X_l, y_l, X_r, y_r)
