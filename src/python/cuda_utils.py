@@ -18,14 +18,14 @@ print('Compute Capability: {}'.format(cc))
 print('Total Device Memory: {} megabytes'.format(my_device.total_memory()//1024**2))
 
 
+
 class DecisionTreeCudaUtils():
 
     def __init__(self):
         """
         Attributes for instance of EncoderDecoder module
         """
-        self.mod = self.get_source_module()
-        pass
+        return
     
     def get_source_module(self):
         # kernel code wrapper
@@ -81,30 +81,39 @@ class DecisionTreeCudaUtils():
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         //Finds the max value of all the gina impurity scores that we have calculated
         #define BLOCKSIZE 1024
-        __global__ void find_best_gina_score(int* index,float* all_gina_scores, const int len){
+        __global__ void find_best_gina_score(int* index, float* all_gina_scores, const int len){
             //loading segment of data in local memory
             __shared__ float scan_array[2*BLOCKSIZE];
+            __shared__ float ii_array[2*BLOCKSIZE];
             unsigned int t =threadIdx.x;
             unsigned int start=2*blockIdx.x*blockDim.x;
 
             if(start+t <len){
                 scan_array[t]=all_gina_scores[start+t];
+                ii_array[t]=index[start+t];
             }
             if(start+blockDim.x+t <len){
                 scan_array[blockDim.x+t]=all_gina_scores[start+blockDim.x+t];
+                ii_array[blockDim.x+t]=index[start+blockDim.x+t];
             }
 
             for (unsigned int stride = blockDim.x;stride > 0; stride /= 2){
                 __syncthreads();
                 if (t < stride){
+                  
                   if(scan_array[t] < scan_array[t+stride]){
                       scan_array[t]=scan_array[t+stride];
-                      index[t]=index[t+stride];
+                      ii_array[t]= ii_array[t+stride];
                   }
                 }            
             }
-            //This returns max value and index at the 1st index i.e. 0 in all_gina_scores and index matrices respectively
+            __syncthreads();
+            if(threadIdx.x==0){
+                index[blockIdx.x] = ii_array[threadIdx.x];
+                all_gina_scores[blockIdx.x] =scan_array[threadIdx.x];
+            }
         }
+        
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         //takes the input matrix X and returns the labels for l or r
         __global__ void split_data(float* label,float* X, const int bound,const int dim, const int l,const int w){
@@ -121,8 +130,20 @@ class DecisionTreeCudaUtils():
         """
         return SourceModule(kernelwrapper)
          
-    def calculate_score(self, X_train_b, y_train_b, dim, row):
+    def calculate_score(self, X_train_b, y_train_b):
+        
+        
+        if not isinstance(X_train_b, np.ndarray):
+            raise Exception("X_train_b needs to be np.array")
+        if not isinstance(y_train_b, np.ndarray):
+            raise Exception("y_train_b needs to be np.array")
+            
+        y_train_b = y_train_b.astype(np.float32)
+        X_train_b = X_train_b.astype(np.float32)
+            
         # Implement CUDA function
+        
+        self.mod = self.get_source_module()
 
         unique_classes = np.unique(y_train_b)
         #Making categorical data into integers
@@ -144,10 +165,10 @@ class DecisionTreeCudaUtils():
         dim = np.array(X_train_b.shape[1]).astype(np.int32)
 
         #Grid and block dimensions
-        blocksize=64
-        blockDim=(blocksize,X_train_b.shape[1],1)
-        gridDim =(X_train_b.shape[0]//blocksize+1,X_train_b.shape[1]//blocksize+1,1)
-
+        blocksize=32
+#         blockDim=(blocksize,X_train_b.shape[1],1)
+        blockDim=(blocksize, blocksize, 1)
+        gridDim =(X_train_b.shape[0]//blocksize+1, X_train_b.shape[1]//blocksize+1, 1)
 
         #Memory allocation
         X_train_b_gpu = gpuArray.to_gpu(X_train_b)
@@ -156,7 +177,16 @@ class DecisionTreeCudaUtils():
         
         #run and time the kernel
         start.record()
-        calculate_scores(impurity_scores_gpu,X_train_b_gpu,y_train_b_gpu,unique_classes,row,dim,block=blockDim,grid=gridDim)
+        print(blockDim)
+        print(gridDim)
+        calculate_scores(impurity_scores_gpu,
+                         X_train_b_gpu,
+                         y_train_b_gpu,
+                         unique_classes,
+                         row,
+                         dim,
+                         block=blockDim,
+                         grid=gridDim)
 
         # Wait for the event to complete
         end.record()
@@ -165,25 +195,63 @@ class DecisionTreeCudaUtils():
 
         #Fetch the impurity scores
         impurity_scores = impurity_scores_gpu.get()
-        return impurity_scores,time
+        return impurity_scores
     
     def choose_best_score(self, all_gina_scores: np.array):
+        
+        if not isinstance(all_gina_scores, np.ndarray):
+            raise Exception("all_gina_scores needs to be np.array")
+        all_gina_scores = all_gina_scores.astype(np.float32)
+        
+        all_gina_scores_flatten = all_gina_scores.flatten()
+        
+        current_scores = all_gina_scores_flatten
+        current_indexes = np.array([i for i in range(all_gina_scores_flatten.shape[0])])
+        current_indexes = current_indexes.astype(np.int32)
+        
+        t_total = 0
+        count = 0
+        block_size = 8
+        while True:
+            
+            new_current_indexes, new_current_scores, t = self.choose_best_score_recurs(current_scores, current_indexes)
+            t_total += t
+            count += 1
+            
+            
+            if len(current_indexes) <= block_size:
+                #print(f"breaking becuase len(current_indexes) is {len(current_indexes)}")
+                break
+                
+            current_scores, current_indexes = new_current_scores, new_current_indexes
+            
+            
+        max_index=unravel_index(int(current_indexes[0]), all_gina_scores.shape)
+        return max_index
+    
+    
+
+    def choose_best_score_recurs(self, all_gina_scores_flatten, current_indexes):
         #Unravel the matrix
-        all_gina_scores_flatten =all_gina_scores.flatten()
+        
+        self.mod = self.get_source_module()
+        
 
         #Fetch the kernel 
-        start =cuda.Event()
-        end = cuda.Event()
+        # start =cuda.Event()
+        # end = cuda.Event()
 
         find_best_gina_score=self.mod.get_function("find_best_gina_score")
         #setting up the eindex matrix
-        index=[i for i in range(all_gina_scores_flatten.shape[0])]
-        index=np.array(index)
+        index = current_indexes
 
 
         #Grid and block dimensions
-        blockDim=(1024,1,1)
-        gridDim =(all_gina_scores_flatten.shape[0]//1024+1,1,1)
+        block_size = 1024
+        blockDim=(block_size,1,1)
+        num_blocks = all_gina_scores_flatten.shape[0]//block_size+1
+        gridDim =(num_blocks,1,1)
+        print(f"num_blocks {num_blocks}")
 
         #Converting to 32 bit
         row =np.float32(all_gina_scores_flatten.shape[0])
@@ -195,23 +263,32 @@ class DecisionTreeCudaUtils():
         index_gpu=gpuArray.to_gpu(index)
 
         #run and time the kernel
-        start.record()
+        # start.record()
         find_best_gina_score(index_gpu,all_gina_scores_gpu,row,block=blockDim,grid=gridDim)
 
         # Wait for the event to complete
-        end.record()
-        end.synchronize()
-        time = start.time_till(end)
+        # end.record()
+        # end.synchronize()
+        # time = start.time_till(end)
 
         #Fetch the impurity scores
         index=index_gpu.get()
         gina_scores=all_gina_scores_gpu.get()
-        max_index=unravel_index(int(index[0]),all_gina_scores.shape)
+        
+        
+        
+        #max_index=unravel_index()
 
-        return(max_index,time)
+        return index[:num_blocks], gina_scores[:num_blocks], 0
 
     def split_data(self, X: np.array, y: np.array, bound: float, dim: float):
+        
+        if not isinstance(X, np.ndarray):
+            raise Exception("X needs to be np.array")
+        if not isinstance(y, np.ndarray):
+            raise Exception("y needs to be np.array")
 
+        self.mod = self.get_source_module()
         # Implement CUDA function
         #Fetch the kernel
         start =cuda.Event()
@@ -242,14 +319,16 @@ class DecisionTreeCudaUtils():
         time = start.time_till(end)
 
         #Fetch the impurity scores
-        labels = labels_gpu.get()
+        labels = labels_gpu.get().reshape(-1,)
 
         #code for splitting the child
-        print(labels==0)
-        y_l = y[labels==0]
-        y_r = y[labels==1]
-        print(y_l,y_r)
-        print(X[0][:])
-        X_l = X[(labels==0),:]
-        X_r = X[(labels==1),:]
+#         print(labels==0)
+        y_l = y[labels==1]
+        y_r = y[labels==0]
+#         print(y_l,y_r)
+#         print(X[0][:])
+#         print(f"X.shape is {X.shape}")
+#         print(f"labels.shape is {labels.shape}")
+        X_l = X[labels==1,:]
+        X_r = X[labels==0,:]
         return (X_l, y_l, X_r, y_r)
