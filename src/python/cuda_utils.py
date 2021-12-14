@@ -378,13 +378,13 @@ class DecisionTreeCudaUtils():
         X_r = X[labels==0,:]
         return (X_l, y_l, X_r, y_r)
 
-    def choose_best_score(self,all_gina_scores: np.array):
         a_cud = gpuarray.to_gpu(all_gina_scores)
+    def choose_best_score2(self,all_gina_scores: np.array):
         max_val_gpu = pycuda.gpuarray.max(a_cud)
         max_val = max_val_gpu.get()
         return np.where(all_gina_scores == max_val)
 
-    def choose_best_score2(self,all_gina_scores: np.array):
+    def choose_best_score(self,all_gina_scores: np.array):
       if not isinstance(all_gina_scores, np.ndarray):
             raise Exception("all_gina_scores needs to be np.array")
       #intialize cuda events
