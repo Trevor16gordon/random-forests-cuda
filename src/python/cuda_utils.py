@@ -421,15 +421,15 @@ class DecisionTreeCudaUtils():
       aux_length=np.int32(aux_length)
       
       #Sending the info from h2d
-      input_gpu = gpuArray.to_gpu(all_gina_scores_flatten)
-      index_gpu = gpuArray.to_gpu(current_indexes)
-      auxSum_gpu = gpuArray.to_gpu(auxSum)
-      auxSum3_gpu = gpuArray.to_gpu(auxSum3)
-      auxSum2_gpu = gpuArray.to_gpu(auxSum2)
+      input_gpu = gpuarray.to_gpu(all_gina_scores_flatten)
+      index_gpu = gpuarray.to_gpu(current_indexes)
+      auxSum_gpu = gpuarray.to_gpu(auxSum)
+      auxSum3_gpu = gpuarray.to_gpu(auxSum3)
+      auxSum2_gpu = gpuarray.to_gpu(auxSum2)
 
-      auxIndex_gpu = gpuArray.to_gpu(auxIndex)
-      auxIndex3_gpu = gpuArray.to_gpu(auxIndex3)
-      auxIndex2_gpu = gpuArray.to_gpu(auxIndex2)
+      auxIndex_gpu = gpuarray.to_gpu(auxIndex)
+      auxIndex3_gpu = gpuarray.to_gpu(auxIndex3)
+      auxIndex2_gpu = gpuarray.to_gpu(auxIndex2)
       
       #kernel call
       start.record()
