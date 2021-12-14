@@ -139,9 +139,19 @@ class DecisionTreeCudaUtils():
                 scan_array[t]=input[start+t];
                 ii_array[t]=index[start+t];
             }
+            else{
+                scan_array[t]=0;
+                ii_array[t]=123456789;
+            }
+
+
             if(start+blockDim.x+t <len){
                 scan_array[blockDim.x+t]=input[start+blockDim.x+t];
                 ii_array[blockDim.x+t]=index[start+blockDim.x+t];
+            }
+            else{
+                scan_array[blockDim.x+t]=0;
+                ii_array[blockDim.x+t]=123456789;
             }
 
             for (unsigned int stride = blockDim.x;stride > 0; stride /= 2){
