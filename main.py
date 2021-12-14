@@ -10,7 +10,7 @@ from src.python.utils import generate_random_data
 # Time test
 
 res = []
-
+dtu = DecisionTreeCudaUtils()
 for total_data in reversed([10, 100, 1000]):#, 10000]):
 
   # Setup models
