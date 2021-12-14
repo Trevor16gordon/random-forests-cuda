@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 from scipy.stats import mode
 from random import randrange
 from sklearn.metrics import confusion_matrix
-from cuda_utils import DecisionTreeCudaUtils
+from src.python.cuda_utils import DecisionTreeCudaUtils
 
 
 class RandomForestFromScratch():
