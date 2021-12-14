@@ -1,3 +1,4 @@
+import pycuda
 import time
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
@@ -13,6 +14,8 @@ res = []
 for total_data in reversed([10, 100, 1000]):#, 10000]):
 
   # Setup models
+  pycuda.tools.clear_context_caches()
+  del dtu
   dtu = DecisionTreeCudaUtils()
   dt_cuda = DecisionTreeCudaBaise(max_depth=4)
   dt_cuda.calculate_split_scores = dtu.calculate_score
