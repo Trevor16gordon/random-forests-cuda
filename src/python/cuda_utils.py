@@ -444,7 +444,6 @@ class DecisionTreeCudaUtils():
       print("Finished first call")
 
       #kernel call
-      start2.record()
       scan(auxSum_gpu,
            auxIndex_gpu,
            auxSum2_gpu,
@@ -455,7 +454,6 @@ class DecisionTreeCudaUtils():
       print("Finished second call")
 
       #kernel call
-      start3.record()
       scan(auxSum2_gpu,
            auxIndex2_gpu,
            auxSum3_gpu,
