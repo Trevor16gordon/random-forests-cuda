@@ -414,30 +414,56 @@ class DecisionTreeCudaUtils():
       auxSum3=np.zeros(1)
       auxSum3=np.float32(auxSum3)
       
-
-      auxIndex=np.zeros(aux_length)
-      auxIndex=np.int32(auxIndex)
-      auxIndex2=np.zeros(32)
-      auxIndex2=np.int32(auxIndex2)
-      auxIndex3=np.zeros(1)
-      auxIndex3=np.int32(auxIndex3)
-      aux_length=np.float32(aux_length)
+      aux_length_2 = aux_length//BLOCKSIZE+1
+      auxIndex=np.zeros(aux_length, dtype=np.int32)
+      auxIndex2=np.zeros(aux_length_2, dtype=np.int32)
+      auxIndex3=np.zeros(1, dtype=np.int32)
+      aux_length=np.int32(aux_length)
       
       #Sending the info from h2d
-      input_gpu = gpuarray.to_gpu(all_gina_scores_flatten)
-      index_gpu = gpuarray.to_gpu(current_indexes)
-      auxSum_gpu = gpuarray.to_gpu(auxSum)
-      auxSum3_gpu = gpuarray.to_gpu(auxSum3)
-      auxSum2_gpu = gpuarray.to_gpu(auxSum2)
+      input_gpu = gpuArray.to_gpu(all_gina_scores_flatten)
+      index_gpu = gpuArray.to_gpu(current_indexes)
+      auxSum_gpu = gpuArray.to_gpu(auxSum)
+      auxSum3_gpu = gpuArray.to_gpu(auxSum3)
+      auxSum2_gpu = gpuArray.to_gpu(auxSum2)
 
-      auxIndex_gpu = gpuarray.to_gpu(auxIndex)
-      auxIndex3_gpu = gpuarray.to_gpu(auxIndex3)
-      auxIndex2_gpu = gpuarray.to_gpu(auxIndex2)
+      auxIndex_gpu = gpuArray.to_gpu(auxIndex)
+      auxIndex3_gpu = gpuArray.to_gpu(auxIndex3)
+      auxIndex2_gpu = gpuArray.to_gpu(auxIndex2)
+      
       #kernel call
       start.record()
-      scan(input_gpu,index_gpu,auxSum_gpu,auxIndex_gpu,np.int32(len(current_indexes)),block=blockDim,grid=gridDim)
-      scan(auxSum_gpu,auxIndex_gpu,auxSum2_gpu,auxIndex2_gpu,aux_length,block=blockDim,grid=(32,1,1))
-      scan(auxSum2_gpu,auxIndex2_gpu,auxSum3_gpu,auxIndex3_gpu,np.int32(aux_length//BLOCKSIZE+1),block=blockDim,grid=(1,1,1))
+      # (float* input, int* index,float* auxSum,int* auxIndex,int len)
+      scan(input_gpu,
+           index_gpu,
+           auxSum_gpu,
+           auxIndex_gpu,
+           np.int32(len(current_indexes)),
+           block=blockDim,grid=gridDim)
+      
+      print("Finished first call")
+
+      #kernel call
+      start2.record()
+      scan(auxSum_gpu,
+           auxIndex_gpu,
+           auxSum2_gpu,
+           auxIndex2_gpu,
+           aux_length,
+           block=blockDim,grid=(32,1,1))
+      
+      print("Finished second call")
+
+      #kernel call
+      start3.record()
+      scan(auxSum2_gpu,
+           auxIndex2_gpu,
+           auxSum3_gpu,
+           auxIndex3_gpu,
+           np.int32(aux_length//BLOCKSIZE+1),
+           block=blockDim,grid=(1,1,1))
+      
+      print("Finished third call")
 
       # Wait for the event to complete
       end.record()
