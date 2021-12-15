@@ -11,42 +11,51 @@ from src.python.utils import generate_random_data
 
 res = []
 dtu = DecisionTreeCudaUtils()
-for total_data in reversed([10, 100, 1000]):#, 10000]):
+for num_dimensions in [10, 100, 1000]:
+    for num_rows in reversed([10, 100, 1000, 10000]):
 
-  # Setup models
-  pycuda.tools.clear_context_caches()
-  del dtu
-  dtu = DecisionTreeCudaUtils()
-  dt_cuda = DecisionTreeCudaBaise(max_depth=4)
-  dt_cuda.calculate_split_scores = dtu.calculate_score
-  dt_cuda.choose_best_score = dtu.choose_best_score
-  dt_cuda.split_data = dtu.split_data
+        if (num_dimensions == 1000) and (num_rows == 1000):
+            continue
 
-  print("Creating the training data")
-  X_train, y_train = generate_random_data(num_dimensions=10, num_samples=total_data, num_classes=3, random_state=13)
+        # Setup models
+        pycuda.tools.clear_context_caches()
+        del dtu
+        dtu = DecisionTreeCudaUtils()
+        dt_cuda = DecisionTreeCudaBaise(max_depth=4)
+        dt_cuda.calculate_split_scores = dtu.calculate_score
+        dt_cuda.choose_best_score = dtu.choose_best_score
+        dt_cuda.split_data = dtu.split_data
 
-  print("Fitting Reference")
-  
-  cl = RandomForestClassifier(n_estimators=1, max_depth=4)
-  # cl = tree.DecisionTreeClassifier(max_depth=3)
-  t0 = time.time()
-  cl.fit(X_train, y_train)
-  t1 = time.time()
-  res.append({
-      "name": "reference",
-      "time": t1 - t0,
-      "total_data": total_data*10
-  })
 
-  print("Fitting RF Basic")
+        
+        print("Creating the training data")
+        X_train, y_train = generate_random_data(num_dimensions=num_dimensions, num_samples=num_rows, num_classes=3, random_state=13)
 
-  t0 = time.time()
-  dt_cuda.fit(X_train, y_train)
-  t1 = time.time()
-  res.append({
-      "name": "basic",
-      "time": t1 - t0,
-      "total_data": total_data*10
-  })
+        print("Fitting Reference")
+        
+        cl = RandomForestClassifier(n_estimators=1, max_depth=4)
+        # cl = tree.DecisionTreeClassifier(max_depth=3)
+        t0 = time.time()
+        cl.fit(X_train, y_train)
+        t1 = time.time()
+        res.append({
+            "name": "reference",
+            "time": t1 - t0,
+            "total_data": num_rows*num_dimensions,
+            "num_rows": num_rows,
+            "num_dimensions": num_dimensions,
+        })
+
+        print("Fitting RF Basic")
+
+        t0 = time.time()
+        dt_cuda.fit(X_train, y_train)
+        t1 = time.time()
+        res.append({
+            "name": "basic",
+            "time": t1 - t0,
+            "total_data": num_rows*num_dimensions,
+            "num_dimensions": num_dimensions,
+        })
 
 print(pd.DataFrame(res))
