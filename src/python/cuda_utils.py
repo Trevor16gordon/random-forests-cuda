@@ -244,7 +244,7 @@ class DecisionTreeCudaUtils():
             time=elapsed_with_mem,
             mem_transfer_included=True, 
             gpu_or_naive="gpu",
-            sub_function="split_data",
+            sub_function="calculate_score",
             num_rows=n,
             num_cols=d)
 
@@ -252,7 +252,7 @@ class DecisionTreeCudaUtils():
             time=elapsed_without_mem,
             mem_transfer_included=False, 
             gpu_or_naive="gpu",
-            sub_function="choose_best_score",
+            sub_function="calculate_score",
             num_rows=n,
             num_cols=d)
         return impurity_scores, [time_obj, time_obj_non_mem_trans]
@@ -320,7 +320,7 @@ class DecisionTreeCudaUtils():
             time=elapsed_without_mem,
             mem_transfer_included=False, 
             gpu_or_naive="gpu",
-            sub_function="choose_best_score",
+            sub_function="split_data",
             num_rows=n,
             num_cols=d)
 

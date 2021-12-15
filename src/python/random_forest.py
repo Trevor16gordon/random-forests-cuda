@@ -175,7 +175,7 @@ class DecisionTreeNativePython(DecisionTreeBase):
             time=elapsed,
             mem_transfer_included=True, 
             gpu_or_naive="naive",
-            sub_function="calculate_split_scores",
+            sub_function="calculate_score",
             num_rows=d, 
             num_cols=n)
         return all_gina_scores, [time_obj]
@@ -234,7 +234,7 @@ class DecisionTreeNativePython(DecisionTreeBase):
             time=elapsed,
             mem_transfer_included=True, 
             gpu_or_naive="naive",
-            sub_function="choose_best_score",
+            sub_function="split_data",
             num_rows=d, 
             num_cols=n)
         return X_l, y_l, X_r, y_r, [time_obj]
