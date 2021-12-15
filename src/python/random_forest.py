@@ -76,8 +76,8 @@ class DecisionTreeBase():
     def __init__(self, max_depth):
         self.max_depth = max_depth
 
-    def check_terminal_case(self, labels):
-        return len(np.unique(labels)) == 1
+    def check_terminal_case(self, labels, n, d):
+        raise NotImplementedError()
 
     def calculate_split_scores(self, X: np.array, y: np.array) -> np.array:
         raise NotImplementedError()
@@ -107,7 +107,9 @@ class DecisionTreeBase():
                 parent] = item_stack_fifo.pop(0)
             n, _ = X_train_b.shape
 
-            is_terminal = self.check_terminal_case(y_train_b) or ((depth + 1) >= self.max_depth)
+            all_same_classes, timing_obj = self.check_terminal_case(y_train_b, n, self.d) 
+            is_terminal = all_same_classes or ((depth + 1) >= self.max_depth)
+            self.timing_objs.append(timing_obj)
             if not is_terminal:
 
                 if n == 0:
@@ -162,6 +164,19 @@ class DecisionTreeNativePython(DecisionTreeBase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+    def check_terminal_case(self, labels, n, d):
+        start = time.time()
+        res = len(np.unique(labels)) == 1
+        elapsed = time.time() - start
+        time_obj = TimingObject(
+            time=elapsed,
+            mem_transfer_included=True, 
+            gpu_or_naive="naive",
+            sub_function="check_terminal_case",
+            num_rows=d, 
+            num_cols=n)
+        return res, time_obj
 
     def calculate_split_scores(self, X: np.array, y: np.array) -> np.array:
         start = time.time()
@@ -245,6 +260,19 @@ class DecisionTreeCudaBase(DecisionTreeBase):
     def __init__(self, max_depth):
         super().__init__(max_depth)
         self.cuda_utils = DecisionTreeCudaUtils()
+
+    def check_terminal_case(self, labels, n, d):
+        start = time.time()
+        res = len(np.unique(labels)) == 1
+        elapsed = time.time() - start
+        time_obj = TimingObject(
+            time=elapsed,
+            mem_transfer_included=True, 
+            gpu_or_naive="gpu",
+            sub_function="check_terminal_case",
+            num_rows=d, 
+            num_cols=n)
+        return res, time_obj
 
     def calculate_split_scores(self, X: np.array, y: np.array) -> np.array:
         return self.cuda_utils.calculate_score(X, y)
