@@ -3,7 +3,7 @@ import time
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from src.python.cuda_utils import DecisionTreeCudaUtils
-from src.python.random_forest import DecisionTreeCudaBaise
+from src.python.random_forest import DecisionTreeCudaBase, DecisionTreeNativePython
 from src.python.utils import generate_random_data
 
 
@@ -21,10 +21,8 @@ for num_dimensions in [10, 100, 1000]:
         pycuda.tools.clear_context_caches()
         del dtu
         dtu = DecisionTreeCudaUtils()
-        dt_cuda = DecisionTreeCudaBaise(max_depth=4)
-        dt_cuda.calculate_split_scores = dtu.calculate_score
-        dt_cuda.choose_best_score = dtu.choose_best_score
-        dt_cuda.split_data = dtu.split_data
+        dt_cuda = DecisionTreeCudaBase(max_depth=4)
+        dt_python = DecisionTreeNativePython(max_depth=4)
 
 
         
@@ -39,20 +37,32 @@ for num_dimensions in [10, 100, 1000]:
         cl.fit(X_train, y_train)
         t1 = time.time()
         res.append({
-            "name": "reference",
+            "name": "sklearn",
             "time": t1 - t0,
             "total_data": num_rows*num_dimensions,
             "num_rows": num_rows,
             "num_dimensions": num_dimensions,
         })
 
-        print("Fitting RF Basic")
+        print("Fitting GPU cuda")
 
         t0 = time.time()
         dt_cuda.fit(X_train, y_train)
         t1 = time.time()
         res.append({
-            "name": "basic",
+            "name": "gpu-basic",
+            "time": t1 - t0,
+            "total_data": num_rows*num_dimensions,
+            "num_dimensions": num_dimensions,
+        })
+
+        print("Fitting RF python implementation")
+
+        t0 = time.time()
+        dt_python.fit(X_train, y_train)
+        t1 = time.time()
+        res.append({
+            "name": "gpu-basic",
             "time": t1 - t0,
             "total_data": num_rows*num_dimensions,
             "num_dimensions": num_dimensions,
