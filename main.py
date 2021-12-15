@@ -3,14 +3,17 @@ import time
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from src.python.cuda_utils import DecisionTreeCudaUtils
-from src.python.random_forest import DecisionTreeCudaBase, DecisionTreeNativePython
+from src.python.random_forest import DecisionTreeCudaBase, DecisionTreeNativePython, RandomForestFromScratch
 from src.python.utils import generate_random_data
-
+from src.python.utils import TimingObject
 
 # Time test
 
+all_timing_objs = []
+
 res = []
-dtu = DecisionTreeCudaUtils()
+n_estimators = 1
+max_tree_depth = 4
 for num_dimensions in [10, 100, 1000]:
     for num_rows in [10, 100, 1000, 10000]:
 
