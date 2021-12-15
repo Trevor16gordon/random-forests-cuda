@@ -64,10 +64,12 @@ for num_dimensions in [10, 100, 1000]:
             dt_python.fit(X_train, y_train)
             t1 = time.time()
             res.append({
-                "name": "gpu-basic",
+                "name": "RF Python",
                 "time": t1 - t0,
                 "total_data": num_rows*num_dimensions,
                 "num_dimensions": num_dimensions,
             })
 
-print(pd.DataFrame(res))
+df = pd.DataFrame(res)
+print(df)
+df.to_csv("random_forests_gpu.csv")
