@@ -7,6 +7,7 @@ import pycuda.driver as cuda
 import pycuda.gpuarray as gpuarray
 from pycuda.compiler import SourceModule
 from numpy import unravel_index
+from src.python.utils import TimingObject
 
 cuda.init()
 print("Number of CUDA devices available: ", cuda.Device.count())
@@ -231,15 +232,23 @@ class DecisionTreeCudaUtils():
         # Wait for the event to complete
         end.record()
         end.synchronize()
-        time = start.time_till(end)
+        elapsed = start.time_till(end)
 
         #Fetch the impurity scores
         impurity_scores = impurity_scores_gpu.get()
-        return impurity_scores
+        n, d = X_train_b.shape
+        time_obj = TimingObject(
+            time=elapsed,
+            mem_transfer_included=True, 
+            gpu_or_naive="gpu",
+            sub_function="calculate_score",
+            num_rows=n,
+            num_cols=d)
+        return impurity_scores, time_obj
 
 
     def split_data(self, X: np.array, y: np.array, bound: float, dim: float):
-        
+        n, d = X.shape
         if not isinstance(X, np.ndarray):
             raise Exception("X needs to be np.array")
         if not isinstance(y, np.ndarray):
@@ -272,7 +281,7 @@ class DecisionTreeCudaUtils():
         # Wait for the event to complete
         end.record()
         end.synchronize()
-        time = start.time_till(end)
+        elapsed = start.time_till(end)
 
         #Fetch the impurity scores
         labels = labels_gpu.get().reshape(-1,)
@@ -281,9 +290,17 @@ class DecisionTreeCudaUtils():
         y_r = y[labels==0]
         X_l = X[labels==1,:]
         X_r = X[labels==0,:]
-        return (X_l, y_l, X_r, y_r)
 
-        a_cud = gpuarray.to_gpu(all_gina_scores)
+        time_obj = TimingObject(
+            time=elapsed,
+            mem_transfer_included=True, 
+            gpu_or_naive="gpu",
+            sub_function="split_data",
+            num_rows=n,
+            num_cols=d)
+        return X_l, y_l, X_r, y_r, time_obj
+
+    
     def choose_best_score2(self,all_gina_scores: np.array):
         max_val_gpu = pycuda.gpuarray.max(a_cud)
         max_val = max_val_gpu.get()
@@ -292,6 +309,7 @@ class DecisionTreeCudaUtils():
     def choose_best_score(self,all_gina_scores: np.array):
       if not isinstance(all_gina_scores, np.ndarray):
             raise Exception("all_gina_scores needs to be np.array")
+      n, d = all_gina_scores.shape
       #intialize cuda events
       start =cuda.Event()
       end = cuda.Event()
@@ -371,7 +389,7 @@ class DecisionTreeCudaUtils():
       # Wait for the event to complete
       end.record()
       end.synchronize()
-      time = start.time_till(end)
+      elapsed = start.time_till(end)
 
       
 
@@ -379,4 +397,13 @@ class DecisionTreeCudaUtils():
       auxIndex3=auxIndex3_gpu.get()
 
       max_index=unravel_index(int(auxIndex3), all_gina_scores.shape)
-      return max_index
+
+      time_obj = TimingObject(
+            time=elapsed,
+            mem_transfer_included=True, 
+            gpu_or_naive="gpu",
+            sub_function="choose_best_score",
+            num_rows=n,
+            num_cols=d)
+
+      return max_index, time_obj

@@ -12,7 +12,7 @@ def generate_random_data(num_dimensions=3, num_samples=100, num_classes=3, rando
     np.random.seed(random_states.pop(0))
     means = np.random.normal(1, 10, size=(num_classes,num_dimensions))
     np.random.seed(random_states.pop(0))
-    std = np.random.uniform(1, 10, size=(num_classes,num_dimensions))\
+    std = np.random.uniform(1, 10, size=(num_classes,num_dimensions))
     
     X = np.zeros((num_samples, num_dimensions))
     y = np.zeros((num_samples, 1))
@@ -28,3 +28,42 @@ def generate_random_data(num_dimensions=3, num_samples=100, num_classes=3, rando
         
     X, y = shuffle(X, y)
     return X, y
+
+
+
+class TimingObject():
+    """Class to ensure consistent timing information across different tests
+    """
+
+    def __init__(self, time, mem_transfer_included, gpu_or_naive, sub_function, num_rows, num_cols):
+        """Constructer
+
+        Args:
+            time (float): Time in seconds
+            mem_transfer_included (bool): Whether the timing includes memory transfer
+            gpu_or_naive (str): Generally whether this timing contain
+            sub_function (str): choose_best_score or calculate_split_scores or split_data etc
+            num_rows (int): Data size
+            num_cols (int): Data size
+        """
+        
+        self.store = {
+            "time": time,
+            "mem_transfer_included": mem_transfer_included,
+            "gpu_or_naive": gpu_or_naive,
+            "sub_function": sub_function,
+            "num_rows": num_rows,
+            "num_cols": num_cols
+        }
+
+    def __iter__(self):
+        return iter(self.store)
+    
+    def __len__(self):
+        return len(self.store)
+
+    def __getitem__(self, key):
+        return self.store[key]
+
+    def __setitem__(self, key, val):
+        self.store[key] = val

@@ -1,3 +1,4 @@
+import time
 import pandas as pd
 import numpy as np
 from numpy import unravel_index
@@ -5,21 +6,25 @@ from sklearn.model_selection import train_test_split
 from scipy.stats import mode
 from random import randrange
 from sklearn.metrics import confusion_matrix
+from src.python.utils import TimingObject, generate_random_data
 from src.python.cuda_utils import DecisionTreeCudaUtils
 
 
 class RandomForestFromScratch():
 
-    def __init__(self, n_estimators=1, max_depth=3):
+    def __init__(self, n_estimators=1, max_depth=3, use_gpu=False):
         self.max_depth = max_depth
         self.n_estimators = n_estimators
+        self.use_gpu = use_gpu
 
     def fit(self, X_train, y_train):
+        start = time.time()
         self.X_n = len(X_train)
         self.d = len(X_train[0])
         self.weights = (1/self.X_n)*np.ones(self.X_n)
 
         self.dec_trees = []
+        self.timing_objs = []
 
         for _ in range(self.n_estimators):
 
@@ -27,10 +32,26 @@ class RandomForestFromScratch():
             X_train_b = X_train[choices]
             y_train_b = y_train[choices]
 
-
-            dt = DecisionTreeCudaBaise(max_depth=self.max_depth)
-            dt.fit(X_train_b, y_train_b)
+            if self.use_gpu:
+                dt = DecisionTreeCudaBase(max_depth=self.max_depth)
+            else:
+                dt = DecisionTreeNativePython(max_depth=self.max_depth)
+            
+            timing_objs = dt.fit(X_train_b, y_train_b)
+            self.timing_objs.extend(timing_objs)
             self.dec_trees.append(dt.root)
+
+        elapsed = time.time() - start
+        time_obj = TimingObject(
+            time=elapsed,
+            mem_transfer_included=True, 
+            gpu_or_naive="gpu" if self.use_gpu else "naive",
+            sub_function="top_level",
+            num_rows=self.X_n,
+            num_cols=self.d)
+        return time_obj
+
+        
 
     def predict(self, X):
 
@@ -76,6 +97,8 @@ class DecisionTreeBase():
         tot_count = 0
         root = None
 
+        self.timing_objs = []
+
         while item_stack_fifo and (tot_count < max_iters):
 
             tot_count += 1
@@ -89,14 +112,18 @@ class DecisionTreeBase():
                 if n == 0:
                     continue
                 
-                all_gina_scores = self.calculate_split_scores(X_train_b, y_train_b)               
-                max_index = self.choose_best_score(all_gina_scores)
+                all_gina_scores, time_obj = self.calculate_split_scores(X_train_b, y_train_b)
+                self.timing_objs.append(time_obj)     
+                max_index, time_obj = self.choose_best_score(all_gina_scores)
+                self.timing_objs.append(time_obj)
                 decision_bound = X_train_b[max_index[0], max_index[1]]
                 
                 (X_train_left_b,
                 y_train_left_b,
                 X_train_right_b,
-                y_train_right_b) = self.split_data(X_train_b, y_train_b, decision_bound, max_index[1])
+                y_train_right_b,
+                time_obj) = self.split_data(X_train_b, y_train_b, decision_bound, max_index[1])
+                self.timing_objs.append(time_obj)
 
                 if (len(X_train_left_b) == 0) or (len(X_train_right_b) == 0):
                     is_terminal = True
@@ -127,6 +154,7 @@ class DecisionTreeBase():
             else:
                 pass
         self.root = root
+        return self.timing_objs
 
     
 class DecisionTreeNativePython(DecisionTreeBase):
@@ -135,15 +163,24 @@ class DecisionTreeNativePython(DecisionTreeBase):
         super().__init__(*args, **kwargs)
 
     def calculate_split_scores(self, X: np.array, y: np.array) -> np.array:
+        start = time.time()
         n, d = X.shape
         all_gina_scores = np.zeros((n, d))
         for dim in range(d):
             for row in range(n):
                 all_gina_scores[row, dim] = self._calculate_score(X, y, dim, row)
-        return all_gina_scores
+        elapsed = time.time() - start
+        time_obj = TimingObject(
+            time=elapsed,
+            mem_transfer_included=True, 
+            gpu_or_naive="naive",
+            sub_function="calculate_split_scores",
+            num_rows=d, 
+            num_cols=n)
+        return all_gina_scores, time_obj
 
     def _calculate_score(self, X_train_b, y_train_b, dim, row):
-
+        start = time.time()
         unique_classes = np.unique(y_train_b)
 
         split_value = X_train_b[row,dim]
@@ -167,19 +204,39 @@ class DecisionTreeNativePython(DecisionTreeBase):
         return impurity
 
     def choose_best_score(self, scores: np.array) -> list:
+        start = time.time()
+        n, d = scores.shape
         max_list=[]
         max_list=np.flatnonzero(scores == np.max(scores))
         max_list=unravel_index(max_list, scores.shape)
         max_index_id=randrange(len(max_list[0]))    
         max_index=[max_list[0][max_index_id], max_list[1][max_index_id]]
-        return (max_index)
+        elapsed = time.time() - start
+        time_obj = TimingObject(
+            time=elapsed,
+            mem_transfer_included=True, 
+            gpu_or_naive="naive",
+            sub_function="choose_best_score",
+            num_rows=d, 
+            num_cols=n)
+        return max_index, time_obj
 
     def split_data(self, X: np.array, y: np.array, bound: float, dim: float) -> tuple:
+        start = time.time()
+        n, d = X.shape
         X_l = X[X[:,dim] <= bound, :]
         X_r = X[X[:,dim] > bound, :]
         y_l = y[X[:,dim] <= bound, :]
         y_r = y[X[:,dim] > bound, :]
-        return (X_l, y_l, X_r, y_r)
+        elapsed = time.time() - start
+        time_obj = TimingObject(
+            time=elapsed,
+            mem_transfer_included=True, 
+            gpu_or_naive="naive",
+            sub_function="choose_best_score",
+            num_rows=d, 
+            num_cols=n)
+        return X_l, y_l, X_r, y_r, time_obj
 
 
 class DecisionTreeCudaBase(DecisionTreeBase):
