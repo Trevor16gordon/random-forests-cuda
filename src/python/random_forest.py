@@ -113,18 +113,18 @@ class DecisionTreeBase():
                 if n == 0:
                     continue
                 
-                all_gina_scores, time_obj = self.calculate_split_scores(X_train_b, y_train_b)
-                self.timing_objs.append(time_obj)     
-                max_index, time_obj = self.choose_best_score(all_gina_scores)
-                self.timing_objs.append(time_obj)
+                all_gina_scores, time_objs = self.calculate_split_scores(X_train_b, y_train_b)
+                self.timing_objs.extend(time_objs)     
+                max_index, time_objs = self.choose_best_score(all_gina_scores)
+                self.timing_objs.extend(time_objs)
                 decision_bound = X_train_b[max_index[0], max_index[1]]
                 
                 (X_train_left_b,
                 y_train_left_b,
                 X_train_right_b,
                 y_train_right_b,
-                time_obj) = self.split_data(X_train_b, y_train_b, decision_bound, max_index[1])
-                self.timing_objs.append(time_obj)
+                time_objs) = self.split_data(X_train_b, y_train_b, decision_bound, max_index[1])
+                self.timing_objs.extend(time_objs)
 
                 if (len(X_train_left_b) == 0) or (len(X_train_right_b) == 0):
                     is_terminal = True
@@ -178,7 +178,7 @@ class DecisionTreeNativePython(DecisionTreeBase):
             sub_function="calculate_split_scores",
             num_rows=d, 
             num_cols=n)
-        return all_gina_scores, time_obj
+        return all_gina_scores, [time_obj]
 
     def _calculate_score(self, X_train_b, y_train_b, dim, row):
         start = time.time()
@@ -220,7 +220,7 @@ class DecisionTreeNativePython(DecisionTreeBase):
             sub_function="choose_best_score",
             num_rows=d, 
             num_cols=n)
-        return max_index, time_obj
+        return max_index, [time_obj]
 
     def split_data(self, X: np.array, y: np.array, bound: float, dim: float) -> tuple:
         start = time.time()
@@ -237,7 +237,7 @@ class DecisionTreeNativePython(DecisionTreeBase):
             sub_function="choose_best_score",
             num_rows=d, 
             num_cols=n)
-        return X_l, y_l, X_r, y_r, time_obj
+        return X_l, y_l, X_r, y_r, [time_obj]
 
 
 class DecisionTreeCudaBase(DecisionTreeBase):
@@ -300,15 +300,17 @@ class TreeNode:
         return labels
 
 
-if __name__ == "__main__":
-    df =pd.read_csv('data/IRIS.csv')
-    X_all = df.iloc[:, 0:4]
-    y_all = df.iloc[:, 4:]
-    X_train, X_test, y_train, y_test = train_test_split(X_all, y_all, test_size=0.1)
-    rf = RandomForestFromScratch(max_depth=3)
-    rf.fit(X_train.to_numpy(), y_train.to_numpy())
-    print("fit completed")
-    rf.root.depth_first_print()
-    predicts=rf.root.predict(X_test.to_numpy())
-    confusion=confusion_matrix(predicts,y_test.to_numpy(),labels=['Iris-setosa','Iris-versicolor','Iris-virginica'])
-    print(confusion)
+# if __name__ == "__main__":
+
+X_all, y_all = generate_random_data(num_dimensions=3, num_samples=100, num_classes=3, random_state=13)
+X_train, X_test, y_train, y_test = train_test_split(X_all, y_all, test_size=0.1)
+rf = RandomForestFromScratch(max_depth=3)
+rf.fit(X_train, y_train)
+print("fit completed")
+# rf.root.depth_first_print()
+# predicts=rf.predict(X_test.to_numpy())
+# confusion=confusion_matrix(predicts,y_test.to_numpy(),labels=['Iris-setosa','Iris-versicolor','Iris-virginica'])
+# print(confusion)
+
+
+
