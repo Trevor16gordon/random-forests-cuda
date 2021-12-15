@@ -284,7 +284,7 @@ class DecisionTreeCudaUtils():
         dim =np.array([dim], dtype=np.int32)
         #Memory allocation
 
-        start1.recort()
+        start1.record()
 
         X_gpu = gpuarray.to_gpu(X_32) 
         labels_gpu = gpuarray.to_gpu(labels)
