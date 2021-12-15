@@ -194,7 +194,8 @@ class DecisionTreeCudaUtils():
             y_train_b[y_train_b == label]=j
         
         #Fetch the kernel
-        start =cuda.Event()
+        start1 =cuda.Event()
+        start2 =cuda.Event()
         end = cuda.Event()
 
         calculate_scores=self.mod.get_function("calculate_gina_scores")
@@ -214,12 +215,13 @@ class DecisionTreeCudaUtils():
         gridDim =(X_train_b.shape[0]//blocksize+1, X_train_b.shape[1]//blocksize+1, 1)
 
         #Memory allocation
+        start1.record()
         X_train_b_gpu = gpuarray.to_gpu(X_train_b)
         y_train_b_gpu = gpuarray.to_gpu(y_train_b)  
         impurity_scores_gpu = gpuarray.zeros_like(X_train_b_gpu)
         
         #run and time the kernel
-        start.record()
+        start2.record()
         calculate_scores(impurity_scores_gpu,
                          X_train_b_gpu,
                          y_train_b_gpu,
@@ -232,19 +234,28 @@ class DecisionTreeCudaUtils():
         # Wait for the event to complete
         end.record()
         end.synchronize()
-        elapsed = start.time_till(end)*1e-3
+        elapsed_with_mem = start1.time_till(end)*1e-3
+        elapsed_without_mem = start2.time_till(end)*1e-3
 
         #Fetch the impurity scores
         impurity_scores = impurity_scores_gpu.get()
         n, d = X_train_b.shape
         time_obj = TimingObject(
-            time=elapsed,
+            time=elapsed_with_mem,
             mem_transfer_included=True, 
             gpu_or_naive="gpu",
-            sub_function="calculate_score",
+            sub_function="split_data",
             num_rows=n,
             num_cols=d)
-        return impurity_scores, time_obj
+
+        time_obj_non_mem_trans = TimingObject(
+            time=elapsed_without_mem,
+            mem_transfer_included=False, 
+            gpu_or_naive="gpu",
+            sub_function="choose_best_score",
+            num_rows=n,
+            num_cols=d)
+        return impurity_scores, [time_obj, time_obj_non_mem_trans]
 
 
     def split_data(self, X: np.array, y: np.array, bound: float, dim: float):
@@ -256,7 +267,8 @@ class DecisionTreeCudaUtils():
 
         # Implement CUDA function
         #Fetch the kernel
-        start =cuda.Event()
+        start1 =cuda.Event()
+        start2 =cuda.Event()
         end = cuda.Event()
 
         split_data=self.mod.get_function("split_data")
@@ -271,17 +283,19 @@ class DecisionTreeCudaUtils():
         bound = np.array([bound], dtype=np.int32)
         dim =np.array([dim], dtype=np.int32)
         #Memory allocation
+
+        start1.recort()
+
         X_gpu = gpuarray.to_gpu(X_32) 
         labels_gpu = gpuarray.to_gpu(labels)
 
         #run and time the kernel
-        start.record()
+        start2.record()
         split_data(labels_gpu,X_gpu,bound,dim,row,col,block=blockDim,grid=gridDim)
 
         # Wait for the event to complete
         end.record()
         end.synchronize()
-        elapsed = start.time_till(end)*1e-3
 
         #Fetch the impurity scores
         labels = labels_gpu.get().reshape(-1,)
@@ -291,14 +305,26 @@ class DecisionTreeCudaUtils():
         X_l = X[labels==1,:]
         X_r = X[labels==0,:]
 
+        elapsed_with_mem = start1.time_till(end)*1e-3
+        elapsed_without_mem = start2.time_till(end)*1e-3
+
         time_obj = TimingObject(
-            time=elapsed,
+            time=elapsed_with_mem,
             mem_transfer_included=True, 
             gpu_or_naive="gpu",
             sub_function="split_data",
             num_rows=n,
             num_cols=d)
-        return X_l, y_l, X_r, y_r, time_obj
+
+        time_obj_non_mem_trans = TimingObject(
+            time=elapsed_without_mem,
+            mem_transfer_included=False, 
+            gpu_or_naive="gpu",
+            sub_function="choose_best_score",
+            num_rows=n,
+            num_cols=d)
+
+        return X_l, y_l, X_r, y_r, [time_obj, time_obj_non_mem_trans]
 
     
     def choose_best_score2(self,all_gina_scores: np.array):
@@ -311,7 +337,8 @@ class DecisionTreeCudaUtils():
             raise Exception("all_gina_scores needs to be np.array")
       n, d = all_gina_scores.shape
       #intialize cuda events
-      start =cuda.Event()
+      start1 =cuda.Event()
+      start2 =cuda.Event()
       end = cuda.Event()
       #fetching the kernel
       scan = self.mod.get_function("reduction_scan")
@@ -342,6 +369,8 @@ class DecisionTreeCudaUtils():
       auxIndex2=np.zeros(aux_length_2, dtype=np.int32)
       auxIndex3=np.zeros(1, dtype=np.int32)
       aux_length=np.int32(aux_length)
+
+      start1.record()
       
       #Sending the info from h2d
       input_gpu = gpuarray.to_gpu(all_gina_scores_flatten)
@@ -355,7 +384,7 @@ class DecisionTreeCudaUtils():
       auxIndex2_gpu = gpuarray.to_gpu(auxIndex2)
       
       #kernel call
-      start.record()
+      start2.record()
       # (float* input, int* index,float* auxSum,int* auxIndex,int len)
       scan(input_gpu,
            index_gpu,
@@ -363,8 +392,6 @@ class DecisionTreeCudaUtils():
            auxIndex_gpu,
            np.int32(len(current_indexes)),
            block=blockDim,grid=gridDim)
-      
-      
 
       #kernel call
       scan(auxSum_gpu,
@@ -373,8 +400,6 @@ class DecisionTreeCudaUtils():
            auxIndex2_gpu,
            aux_length,
            block=blockDim,grid=(32,1,1))
-      
-      
 
       #kernel call
       scan(auxSum2_gpu,
@@ -383,15 +408,12 @@ class DecisionTreeCudaUtils():
            auxIndex3_gpu,
            np.int32(aux_length//BLOCKSIZE+1),
            block=blockDim,grid=(1,1,1))
-      
-      
 
       # Wait for the event to complete
       end.record()
       end.synchronize()
-      elapsed = start.time_till(end)*1e-3
-
-      
+      elapsed_with_mem = start1.time_till(end)*1e-3
+      elapsed_without_mem = start2.time_till(end)*1e-3
 
       # Fetch result from device to host
       auxIndex3=auxIndex3_gpu.get()
@@ -399,11 +421,19 @@ class DecisionTreeCudaUtils():
       max_index=unravel_index(int(auxIndex3), all_gina_scores.shape)
 
       time_obj = TimingObject(
-            time=elapsed,
+            time=elapsed_with_mem,
             mem_transfer_included=True, 
             gpu_or_naive="gpu",
             sub_function="choose_best_score",
             num_rows=n,
             num_cols=d)
 
-      return max_index, time_obj
+      time_obj_non_mem_trans = TimingObject(
+            time=elapsed_without_mem,
+            mem_transfer_included=False, 
+            gpu_or_naive="gpu",
+            sub_function="choose_best_score",
+            num_rows=n,
+            num_cols=d)
+
+      return max_index, [time_obj, time_obj_non_mem_trans]
