@@ -189,7 +189,7 @@ class DecisionTreeCudaBase(DecisionTreeBase):
         self.cuda_utils = DecisionTreeCudaUtils()
 
     def calculate_split_scores(self, X: np.array, y: np.array) -> np.array:
-        return self.cuda_utils.calculate_split_scores(X, y)
+        return self.cuda_utils.calculate_score(X, y)
 
     def choose_best_score(self, scores: np.array) -> list:
         return self.cuda_utils.choose_best_score(scores)
