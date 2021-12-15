@@ -232,7 +232,7 @@ class DecisionTreeCudaUtils():
         # Wait for the event to complete
         end.record()
         end.synchronize()
-        elapsed = start.time_till(end)
+        elapsed = start.time_till(end)*1e-3
 
         #Fetch the impurity scores
         impurity_scores = impurity_scores_gpu.get()
@@ -281,7 +281,7 @@ class DecisionTreeCudaUtils():
         # Wait for the event to complete
         end.record()
         end.synchronize()
-        elapsed = start.time_till(end)
+        elapsed = start.time_till(end)*1e-3
 
         #Fetch the impurity scores
         labels = labels_gpu.get().reshape(-1,)
@@ -389,7 +389,7 @@ class DecisionTreeCudaUtils():
       # Wait for the event to complete
       end.record()
       end.synchronize()
-      elapsed = start.time_till(end)
+      elapsed = start.time_till(end)*1e-3
 
       
 
