@@ -49,7 +49,8 @@ class RandomForestFromScratch():
             sub_function="top_level",
             num_rows=self.X_n,
             num_cols=self.d)
-        return time_obj
+        self.timing_objs.append(time_obj)
+        return self.timing_objs
 
         
 
