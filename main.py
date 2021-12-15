@@ -17,7 +17,7 @@ max_tree_depth = 4
 for num_dimensions in [10, 100, 1000]:
     for num_rows in [10, 100, 1000, 10000]:
 
-        if (num_dimensions == 1000) and (num_rows == 1000):
+        if (num_dimensions == 1000) and (num_rows == 10000):
             continue
 
         # Setup models
@@ -36,13 +36,15 @@ for num_dimensions in [10, 100, 1000]:
         start = time.time()
         cl.fit(X_train, y_train)
         elapsed = time.time() - start
+
+        
         all_timing_objs.append(TimingObject(
             time=elapsed,
             mem_transfer_included=True, 
             gpu_or_naive="sklearn",
             sub_function="top_level",
-            num_rows=num_dimensions, 
-            num_cols=num_rows))
+            num_rows=num_rows, 
+            num_cols=num_dimensions))
 
         print("Fitting GPU cuda")
 
