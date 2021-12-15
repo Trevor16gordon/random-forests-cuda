@@ -46,13 +46,13 @@ for num_dimensions in [10, 100, 1000]:
 
         print("Fitting GPU cuda")
 
-        time_obj = dt_cuda.fit(X_train, y_train)
-        all_timing_objs.append(time_obj)
+        timeing_objs = dt_cuda.fit(X_train, y_train)
+        all_timing_objs.extend(timeing_objs)
         
         if (num_dimensions < 1000) and (num_rows < 10000):
             print("Fitting RF python implementation")
-            time_obj = dt_python.fit(X_train, y_train)
-            all_timing_objs.append(time_obj)
+            timeing_objs = dt_python.fit(X_train, y_train)
+            all_timing_objs.extend(timeing_objs)
 
 df = pd.DataFrame([x.store for x in all_timing_objs])
 
