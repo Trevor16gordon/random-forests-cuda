@@ -28,7 +28,7 @@ class RandomForestFromScratch():
             y_train_b = y_train[choices]
 
 
-            dt = DecisionTreeNativePython(max_depth=self.max_depth)
+            dt = DecisionTreeCudaBaise(max_depth=self.max_depth)
             dt.fit(X_train_b, y_train_b)
             self.dec_trees.append(dt.root)
 
@@ -182,7 +182,7 @@ class DecisionTreeNativePython(DecisionTreeBase):
         return (X_l, y_l, X_r, y_r)
 
 
-class DecisionTreeCudaBaise(DecisionTreeBase):
+class DecisionTreeCudaBase(DecisionTreeBase):
 
     def __init__(self, max_depth):
         super().__init__(max_depth)
