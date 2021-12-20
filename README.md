@@ -34,5 +34,7 @@ This repo contains a random forest implementations from scratch using native pyt
     - Includes generation of variable dimensional gaussian mixture model data for running different timing tests
     - Includes some timing objects to standardize timing across modules
 
+# Results
+Results including figures and tabular data are shown in the results folder
 
 
