@@ -11,13 +11,33 @@ from src.python.cuda_utils import DecisionTreeCudaUtils
 
 
 class RandomForestFromScratch():
+    """Random Forest Implementation
 
+    - Interface for running Random Forest models giving the same interface as sklearn Random Forests implementation
+    - This class instantiates many different DecisionTreeNativePython or DecisionTreeCudaBase and trains them on random subsets of the training data.
+    - When predicting the majority voting class of all the predictor trees are used
+    """
     def __init__(self, n_estimators=1, max_depth=3, use_gpu=False):
+        """Initialization
+
+        Args:
+            n_estimators (int, optional): Number of trees. Defaults to 1.
+            max_depth (int, optional): Max depth of tree. Defaults to 3.
+            use_gpu (bool, optional): If python implemendation or GPU implementation should be used`. Defaults to False.
+        """
         self.max_depth = max_depth
         self.n_estimators = n_estimators
         self.use_gpu = use_gpu
 
     def fit(self, X_train, y_train):
+        """Main fit function
+
+        - Instantiates many different DecisionTreeNativePython or DecisionTreeCudaBase and trains them on random subsets of the training data.
+
+        Args:
+            X_train (np.array): Training data  
+            y_train (np.array): training labels
+        """
         start = time.time()
         self.X_n = len(X_train)
         self.d = len(X_train[0])
@@ -52,9 +72,12 @@ class RandomForestFromScratch():
         self.timing_objs.append(time_obj)
         return self.timing_objs
 
-        
-
     def predict(self, X):
+        """Predict the class of new training data X
+        
+        - Calls predict on all decision trees
+        - Returns the majority vote of all trees
+        """
 
         all_y_pred = []
 
@@ -69,11 +92,18 @@ class RandomForestFromScratch():
 class DecisionTreeBase():
     """Base decision tree to inherit from
 
-    Returns:
-        [type]: [description]
+    Need to overwrite:
+    - calculate_split_scores
+    - choose_best_score
+    - split_data
     """
 
     def __init__(self, max_depth):
+        """Initialize
+
+        Args:
+            max_depth (int): Max depth to train decision trees
+        """
         self.max_depth = max_depth
 
     def check_terminal_case(self, labels, n, d):
@@ -89,6 +119,20 @@ class DecisionTreeBase():
         raise NotImplementedError()
 
     def fit(self, X_train, y_train):
+        """Fit the training data and generate decision tree
+
+        Args:
+            X_train (np.array): X_train
+            y_train (np.array): y_train
+
+        - Iteratively train a decision tree by doing a breadth first training on the leaf nodes
+        - At each iteration, the split scores are computed for all training points and dimensions
+        - The best score is chosen
+        - The split occurs and the resulting leaf nodes are added to the work queue
+
+        Returns:
+            list: Timing objects
+        """
         self.X_n = len(X_train)
         self.d = len(X_train[0])
         self.weights = (1/self.X_n)*np.ones(self.X_n)
@@ -166,6 +210,18 @@ class DecisionTreeNativePython(DecisionTreeBase):
         super().__init__(*args, **kwargs)
 
     def check_terminal_case(self, labels, n, d):
+        """Check if leaf node should be terminal
+
+        - Terminal if max depth is reached or all labels are of the same class
+
+        Args:
+            labels (np.array): y_train
+            n (int): Number of rows
+            d (int): Number of dimensions
+
+        Returns:
+            bool: If this leaf node should be the terminal node
+        """
         start = time.time()
         res = len(np.unique(labels)) == 1
         elapsed = time.time() - start
@@ -179,6 +235,16 @@ class DecisionTreeNativePython(DecisionTreeBase):
         return res, time_obj
 
     def calculate_split_scores(self, X: np.array, y: np.array) -> np.array:
+        """Naive implementation of calculating the gini impurity score
+
+        Args:
+            X (np.array): X
+            y (np.array): y
+
+        Returns:
+            np.array: Same shape as X
+            list of timing objects for analysis
+        """
         start = time.time()
         n, d = X.shape
         all_gina_scores = np.zeros((n, d))
@@ -196,6 +262,17 @@ class DecisionTreeNativePython(DecisionTreeBase):
         return all_gina_scores, [time_obj]
 
     def _calculate_score(self, X_train_b, y_train_b, dim, row):
+        """Calculate one gini impurity
+
+        Args:
+            X_train_b (np.array): X
+            y_train_b (np.array): y
+            dim (int): Number of dimensions
+            row (int): Number of rows
+
+        Returns:
+            float: The gini impurity score
+        """
         start = time.time()
         unique_classes = np.unique(y_train_b)
 
@@ -220,6 +297,15 @@ class DecisionTreeNativePython(DecisionTreeBase):
         return impurity
 
     def choose_best_score(self, scores: np.array) -> list:
+        """Find the max value in 2d array
+
+        Args:
+            scores (np.array): The gini impurity scores
+
+        Returns:
+            list: the 2d coordinates of the max score
+            list: Timing objects for analysis
+        """
         start = time.time()
         n, d = scores.shape
         max_list=[]
@@ -238,6 +324,22 @@ class DecisionTreeNativePython(DecisionTreeBase):
         return max_index, [time_obj]
 
     def split_data(self, X: np.array, y: np.array, bound: float, dim: float) -> tuple:
+        """Split X and y based on boundary and dimension
+
+        Args:
+            X (np.array): X
+            y (np.array): t
+            bound (float): The value to compare to
+            dim (float): The column index
+
+         Returns:
+            tuple:
+                X_l: np.array the left X array
+                y_l: np.array the left y array
+                X_r: np.array the right X array
+                y_r: np.array the right y array
+                Tuple of timing objects
+        """
         start = time.time()
         n, d = X.shape
         X_l = X[X[:,dim] <= bound, :]
@@ -258,10 +360,26 @@ class DecisionTreeNativePython(DecisionTreeBase):
 class DecisionTreeCudaBase(DecisionTreeBase):
 
     def __init__(self, max_depth):
+        """Initialize
+
+        Args:
+            max_depth (int): Maximum depth of tree
+        """
         super().__init__(max_depth)
         self.cuda_utils = DecisionTreeCudaUtils()
 
     def check_terminal_case(self, labels, n, d):
+        """Check if leaf node should be terminal
+
+        - Terminal if max depth is reached or all labels are of the same class
+
+        Args:
+            labels (np.array): y_train
+            n (int): Number of rows
+            d (int): Number of dimensions
+
+        Returns:
+            bool: If this leaf node should be the terminal node"""
         start = time.time()
         res = len(np.unique(labels)) == 1
         elapsed = time.time() - start
@@ -275,18 +393,36 @@ class DecisionTreeCudaBase(DecisionTreeBase):
         return res, time_obj
 
     def calculate_split_scores(self, X: np.array, y: np.array) -> np.array:
+        """ See cuda_utils documentation"""
         return self.cuda_utils.calculate_score(X, y)
 
     def choose_best_score(self, scores: np.array) -> list:
+        """ See cuda_utils documentation"""
         return self.cuda_utils.choose_best_score(scores)
 
     def split_data(self, X: np.array, y: np.array, bound: float, dim: float) -> tuple:
+        """ See cuda_utils documentation"""
         return self.cuda_utils.split_data(X, y, bound, dim)
 
 
 class TreeNode:
+    """A node in a decision tree.
+
+    This class can be used to build a larger decision tree
+    """
 
     def __init__(self, dim=0, val=0, left=None, right=None, depth=None, is_terminal=False, terminal_val=None):
+        """Initialize
+
+        Args:
+            dim (int, optional): Number of dimensions. Defaults to 0.
+            val (int, optional): The value to compare to get to child leaves. Defaults to 0.
+            left (TreeNode, optional): The left tree. Defaults to None.
+            right (TreeNode, optional): The right tree. Defaults to None.
+            depth (int, optional): Depth of this current leaf. Defaults to None.
+            is_terminal (bool, optional): Is this the end node. Defaults to False.
+            terminal_val (string, optional): The class of this terminal node. Defaults to None.
+        """
         self.dim = dim
         self.val = val
         self.left = left
@@ -297,6 +433,14 @@ class TreeNode:
         self.label_dtype = object
 
     def depth_first_print(self, output_txt=""):
+        """Super cool function for visualizing the whole tree
+
+        Args:
+            output_txt (str, optional):  Defaults to "".
+
+        Returns:
+            str: the whole tree
+        """
         if self.is_terminal:
             output_txt += "|   "*self.depth +  "|---" + f" class: {self.terminal_val}\n"
         else:
@@ -306,8 +450,6 @@ class TreeNode:
 
         if self.right:
             output_txt = self.right.depth_first_print(output_txt)
-        if self.depth == 0:
-            print(output_txt)
         return output_txt
 
     def predict(self, X):

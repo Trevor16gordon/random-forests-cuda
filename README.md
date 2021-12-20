@@ -13,9 +13,13 @@ This repo contains a random forest implementations from scratch using native pyt
 - src/python/random_forest.py
     - class RandomForestFromScratch
         - Interface for running Random Forest models giving the same interface as sklearn Random Forests implementation
+        - This class instantiates many different DecisionTreeNativePython or DecisionTreeCudaBase and trains them on random subsets of the training data.
+        - When predicting the majority voting class of all the predictor trees are used
     - class DecisionTreeBase
         - Interface for the base Decision tree class giving same interface as sklearn Decision Tree Implemendation
         - Intended to subclass this and overwrite a few specific functions: calculate_split_scores, choose_best_score, split_data
+        - This class includes the logic for iteratively training a decision tree by doing a breadth first training on the leaf nodes
+        - Training is completed when the maximum depth is reached or leaf nodes only contain a single class
     - class DecisionTreeNativePython
         - calculate_split_scores naive serial implemendation
         - choose_best_score naive serial implemendation
