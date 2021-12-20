@@ -2,6 +2,9 @@ import pycuda
 import time
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
+import warnings
+from sklearn.exceptions import DataConversionWarning
+warnings.filterwarnings(action='ignore', category=DataConversionWarning)
 from src.python.cuda_utils import DecisionTreeCudaUtils
 from src.python.random_forest import DecisionTreeCudaBase, DecisionTreeNativePython, RandomForestFromScratch
 from src.python.utils import generate_random_data
@@ -19,6 +22,8 @@ for num_dimensions in [10, 100, 1000]:
 
         if (num_dimensions == 1000) and (num_rows == 10000):
             continue
+
+        print(f"Training model with {num_dimensions} dimensions and {num_rows} rows")
 
         # Setup models
         # pycuda.tools.clear_context_caches()
