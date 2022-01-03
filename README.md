@@ -2,6 +2,8 @@
 
 This repo contains a random forest implementations from scratch using native python and a cuda GPU implemendation
 
+Pleas see report.pdf for detailed description and timing analysis.
+
 
 # Running
 - Clone repo
